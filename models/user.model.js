@@ -2,15 +2,23 @@ const db = require('../database/db');
 
 // Create new user record with automatic 7-Day Free Trial
 async function createUser(userData) {
-  const { user_name, mobile_number, email, company_name, service_needed } = userData;
+  const { user_name, mobile_number, email, company_name, service_needed, password_hash, role } = userData;
   const service = service_needed || 'full_suite';
   
   // Set 7-day free trial end date
   const sql = `
-    INSERT INTO users (user_name, mobile_number, email, company_name, service_needed, trial_ends_at, trial_status)
-    VALUES (?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY), 'active')
+    INSERT INTO users (user_name, mobile_number, email, company_name, service_needed, password_hash, role, trial_ends_at, trial_status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY), 'active')
   `;
-  const [result] = await db.query(sql, [user_name, mobile_number, email, company_name, service]);
+  const [result] = await db.query(sql, [
+    user_name,
+    mobile_number,
+    email,
+    company_name,
+    service,
+    password_hash || null,
+    role || 'admin'
+  ]);
   
   return getUserById(result.insertId);
 }

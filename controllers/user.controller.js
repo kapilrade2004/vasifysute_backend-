@@ -1,5 +1,8 @@
 const UserModel = require('../models/user.model');
 const { sendTrialEmail } = require('../services/email.service');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('../middleware/auth');
 
 function isValidEmail(email) {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -9,7 +12,7 @@ function isValidEmail(email) {
 // POST /api/users - Create User with 7-Day Free Trial
 async function createUser(req, res) {
   try {
-    const { user_name, mobile_number, email, company_name, service_needed } = req.body;
+    const { user_name, mobile_number, email, company_name, service_needed, password, role } = req.body;
 
     if (!user_name || String(user_name).trim().length < 2) {
       return res.status(400).json({
@@ -68,13 +71,28 @@ async function createUser(req, res) {
       });
     }
 
+    let password_hash = null;
+    if (password && String(password).length >= 4) {
+      const salt = await bcrypt.genSalt(10);
+      password_hash = await bcrypt.hash(password, salt);
+    }
+
     const user = await UserModel.createUser({
       user_name: trimmedName,
       mobile_number: trimmedMobile,
       email: trimmedEmail,
       company_name: trimmedCompany,
-      service_needed: trimmedService
+      service_needed: trimmedService,
+      password_hash,
+      role: role || 'admin'
     });
+
+    // Sign JWT token
+    const token = jwt.sign(
+      { id: user.id, email: user.email, name: user.user_name, role: user.role || 'admin', company: user.company_name },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
 
     // Send real HTML welcome email to the newly registered email address
     const endDateStr = user.trial_ends_at ? new Date(user.trial_ends_at).toLocaleDateString() : '7 days from today';
@@ -100,13 +118,14 @@ async function createUser(req, res) {
       </div>
     `;
 
-    await sendTrialEmail(user.email, welcomeSubject, welcomeText, welcomeHtml);
+    sendTrialEmail(user.email, welcomeSubject, welcomeText, welcomeHtml).catch(() => {});
 
     console.log(`📧 [WELCOME EMAIL SENT] Sent 7-Day Free Trial welcome email to ${user.email}. Trial ends on ${user.trial_ends_at}.`);
 
     return res.status(201).json({
       success: true,
       message: 'User created successfully with 7-Day Free Trial',
+      token,
       user
     });
   } catch (error) {

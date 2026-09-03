@@ -231,4 +231,275 @@ router.post('/:id/send-whatsapp', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/invoices/stats/overview — invoice statistics and trends
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/stats/overview', async (req, res) => {
+  try {
+    const userId = req.query.userId;
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+
+    if (userId) {
+      whereClause += ' AND user_id = ?';
+      params.push(userId);
+    }
+
+    const [statusBreakdown] = await db.query(
+      `SELECT status, COUNT(*) AS count, COALESCE(SUM(total), 0) AS total_amount
+       FROM invoices ${whereClause}
+       GROUP BY status`,
+      sanitize(...params)
+    );
+
+    const [monthlyTrend] = await db.query(
+      `SELECT DATE_FORMAT(issue_date, '%Y-%m') AS month, COUNT(*) AS count, COALESCE(SUM(total), 0) AS total_amount
+       FROM invoices ${whereClause}
+       GROUP BY month
+       ORDER BY month DESC LIMIT 6`,
+      sanitize(...params)
+    );
+
+    const [overdueRows] = await db.query(
+      `SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS total_amount
+       FROM invoices ${whereClause} AND due_date < CURDATE() AND status != 'paid'`,
+      sanitize(...params)
+    );
+
+    return res.status(200).json({
+      success: true,
+      statusBreakdown: statusBreakdown || [],
+      monthlyTrend: monthlyTrend || [],
+      overdue: {
+        count: overdueRows[0]?.count || 0,
+        total_amount: overdueRows[0]?.total_amount || 0
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching invoice stats:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch invoice stats.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/invoices/:id — single invoice with all line items
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await db.query(`SELECT * FROM invoices WHERE id = ?`, sanitize(id));
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Invoice not found.' });
+    }
+
+    const invoice = rows[0];
+    const [items] = await db.query(
+      `SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY created_at`,
+      sanitize(id)
+    );
+    invoice.items = items || [];
+
+    return res.status(200).json({ success: true, invoice });
+  } catch (err) {
+    console.error('Error fetching invoice:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch invoice.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/invoices/:id — update invoice status and/or metadata
+// Body: { status, notes, dueDate, customerName, customerEmail, customerPhone }
+// ─────────────────────────────────────────────────────────────────────────────
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      status, notes, dueDate, customerName,
+      customerCompany, customerEmail, customerPhone
+    } = req.body;
+
+    const [existing] = await db.query(`SELECT id FROM invoices WHERE id = ?`, sanitize(id));
+    if (!existing || existing.length === 0) {
+      return res.status(404).json({ success: false, message: 'Invoice not found.' });
+    }
+
+    // Build dynamic SET clause — only update fields that were sent
+    const fields = [];
+    const params = [];
+
+    if (status !== undefined)         { fields.push('status = ?');           params.push(status); }
+    if (notes !== undefined)          { fields.push('notes = ?');            params.push(notes); }
+    if (dueDate !== undefined)        { fields.push('due_date = ?');         params.push(dueDate); }
+    if (customerName !== undefined)   { fields.push('customer_name = ?');    params.push(customerName); }
+    if (customerCompany !== undefined){ fields.push('customer_company = ?'); params.push(customerCompany); }
+    if (customerEmail !== undefined)  { fields.push('customer_email = ?');   params.push(customerEmail); }
+    if (customerPhone !== undefined)  { fields.push('customer_phone = ?');   params.push(customerPhone); }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ success: false, message: 'No fields to update.' });
+    }
+
+    fields.push('updated_at = NOW()');
+    params.push(id);
+
+    await db.query(
+      `UPDATE invoices SET ${fields.join(', ')} WHERE id = ?`,
+      sanitize(...params)
+    );
+
+    const [rows] = await db.query(`SELECT * FROM invoices WHERE id = ?`, sanitize(id));
+    const [items] = await db.query(
+      `SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY created_at`,
+      sanitize(id)
+    );
+    const invoice = rows[0];
+    invoice.items = items || [];
+
+    return res.status(200).json({ success: true, message: 'Invoice updated.', invoice });
+  } catch (err) {
+    console.error('Error updating invoice:', err);
+    return res.status(500).json({ success: false, message: 'Failed to update invoice.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /api/invoices/:id — deletes invoice and all line items (CASCADE)
+// ─────────────────────────────────────────────────────────────────────────────
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [result] = await db.query(`DELETE FROM invoices WHERE id = ?`, sanitize(id));
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Invoice not found.' });
+    }
+
+    return res.status(200).json({ success: true, message: 'Invoice deleted successfully.' });
+  } catch (err) {
+    console.error('Error deleting invoice:', err);
+    return res.status(500).json({ success: false, message: 'Failed to delete invoice.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/invoices/:id/send-email — send invoice summary via Nodemailer
+// Body: { toEmail, customerName }
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/:id/send-email', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { toEmail, customerName } = req.body;
+
+    const [rows] = await db.query(`SELECT * FROM invoices WHERE id = ?`, sanitize(id));
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Invoice not found.' });
+    }
+
+    const inv = rows[0];
+    const [items] = await db.query(
+      `SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY created_at`,
+      sanitize(id)
+    );
+
+    const recipient = toEmail || inv.customer_email;
+    if (!recipient) {
+      return res.status(400).json({ success: false, message: 'No email address available for this invoice.' });
+    }
+
+    const clientName = customerName || inv.customer_name || 'Valued Client';
+    const issueDate  = inv.issue_date ? new Date(inv.issue_date).toLocaleDateString('en-IN') : '—';
+    const dueDate    = inv.due_date   ? new Date(inv.due_date).toLocaleDateString('en-IN')   : '—';
+
+    // Build line items HTML rows
+    const itemRows = (items || []).map((item, idx) => `
+      <tr>
+        <td style="padding:10px 12px;border:1px solid #e2e8f0;">${idx + 1}</td>
+        <td style="padding:10px 12px;border:1px solid #e2e8f0;">${item.description || '—'}</td>
+        <td style="padding:10px 12px;border:1px solid #e2e8f0;text-align:center;">${item.quantity}</td>
+        <td style="padding:10px 12px;border:1px solid #e2e8f0;text-align:right;">₹${Number(item.rate).toLocaleString('en-IN')}</td>
+        <td style="padding:10px 12px;border:1px solid #e2e8f0;text-align:right;font-weight:700;">₹${Number(item.amount).toLocaleString('en-IN')}</td>
+      </tr>
+    `).join('');
+
+    const subject = `Invoice ${inv.invoice_number} from VasifyTech — ₹${Number(inv.total).toLocaleString('en-IN')}`;
+    const text    = `Dear ${clientName}, please find your invoice ${inv.invoice_number} for ₹${inv.total}. Due: ${dueDate}.`;
+    const html    = `
+      <div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:16px;background:#ffffff;">
+        <div style="display:flex;justify-content:space-between;border-bottom:2px solid #1DA851;padding-bottom:20px;margin-bottom:20px;">
+          <div>
+            <h2 style="color:#1DA851;margin:0;font-size:22px;">VasifyTech Suite</h2>
+            <p style="color:#64748b;font-size:12px;margin:4px 0 0;">Axiom Milan CHS, Kandivali West, Mumbai 400067<br>GSTIN: 27AAKCV0353N1ZW</p>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:26px;font-weight:800;color:#0f172a;">INVOICE</div>
+            <div style="font-size:14px;color:#64748b;">#${inv.invoice_number}</div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;gap:20px;margin-bottom:24px;">
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:14px 18px;border-radius:10px;flex:1;">
+            <strong style="color:#475569;font-size:12px;text-transform:uppercase;">Bill To</strong><br/>
+            <span style="font-weight:700;color:#0f172a;font-size:15px;">${clientName}</span><br/>
+            ${inv.customer_company ? `<span style="color:#64748b;">${inv.customer_company}</span><br/>` : ''}
+            ${inv.customer_email   ? `<span style="color:#64748b;">${inv.customer_email}</span><br/>`   : ''}
+            ${inv.customer_phone   ? `<span style="color:#64748b;">${inv.customer_phone}</span>`         : ''}
+          </div>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:14px 18px;border-radius:10px;flex:1;">
+            <strong style="color:#475569;font-size:12px;text-transform:uppercase;">Invoice Details</strong><br/>
+            <span style="color:#64748b;">Issue Date: <strong>${issueDate}</strong></span><br/>
+            <span style="color:#64748b;">Due Date: <strong>${dueDate}</strong></span><br/>
+            <span style="color:#64748b;">Place of Supply: <strong>${inv.place_of_supply || 'Maharashtra (27)'}</strong></span>
+          </div>
+        </div>
+
+        <table style="width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:20px;">
+          <thead>
+            <tr style="background:#f1f5f9;">
+              <th style="padding:10px 12px;border:1px solid #e2e8f0;text-align:left;">#</th>
+              <th style="padding:10px 12px;border:1px solid #e2e8f0;text-align:left;">Description</th>
+              <th style="padding:10px 12px;border:1px solid #e2e8f0;text-align:center;">Qty</th>
+              <th style="padding:10px 12px;border:1px solid #e2e8f0;text-align:right;">Rate</th>
+              <th style="padding:10px 12px;border:1px solid #e2e8f0;text-align:right;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>${itemRows || `<tr><td colspan="5" style="padding:12px;border:1px solid #e2e8f0;text-align:center;color:#94a3b8;">No line items</td></tr>`}</tbody>
+        </table>
+
+        <div style="text-align:right;margin-bottom:24px;">
+          <div style="font-size:14px;color:#64748b;">Subtotal: ₹${Number(inv.amount).toLocaleString('en-IN')}</div>
+          <div style="font-size:14px;color:#64748b;">GST (${inv.tax || 18}%): ₹${Number(inv.gst_amount).toLocaleString('en-IN')}</div>
+          <div style="font-size:20px;font-weight:800;color:#1DA851;margin-top:6px;">Total: ₹${Number(inv.total).toLocaleString('en-IN')}</div>
+        </div>
+
+        ${inv.notes ? `<div style="background:#f8fafc;border:1px solid #e2e8f0;padding:12px 16px;border-radius:8px;font-size:13px;color:#475569;margin-bottom:20px;"><strong>Notes:</strong> ${inv.notes}</div>` : ''}
+
+        <div style="text-align:center;padding-top:16px;border-top:1px solid #e2e8f0;font-size:12.5px;color:#94a3b8;">
+          Thank you for your business. Please contact us at support@vasifytech.com for any queries.
+        </div>
+      </div>
+    `;
+
+    const result = await sendTrialEmail(recipient, subject, text, html);
+
+    // Mark status as sent if it was a draft
+    if (inv.status === 'draft') {
+      await db.query(
+        `UPDATE invoices SET status = 'sent', updated_at = NOW() WHERE id = ?`,
+        sanitize(id)
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Invoice ${inv.invoice_number} emailed to ${recipient}`,
+      email: { recipient, invoiceNumber: inv.invoice_number, simulated: result.simulated || false }
+    });
+  } catch (err) {
+    console.error('Error sending invoice email:', err);
+    return res.status(500).json({ success: false, message: 'Failed to send invoice email.' });
+  }
+});
+
 module.exports = router;
+
