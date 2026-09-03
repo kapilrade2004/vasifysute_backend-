@@ -5,6 +5,42 @@ const { optionalAuth } = require('../middleware/auth');
 
 const sanitize = (...params) => params.map((p) => (p === undefined ? null : p));
 
+// Helper: Ensure customers table exists and has initial seed data
+async function ensureCustomersTable() {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS customers (
+        id VARCHAR(50) PRIMARY KEY,
+        user_id INT NULL,
+        name VARCHAR(150) NOT NULL,
+        email VARCHAR(150) NULL,
+        phone VARCHAR(50) NULL,
+        company VARCHAR(150) NULL,
+        address TEXT NULL,
+        status VARCHAR(50) DEFAULT 'active',
+        total_value DECIMAL(15,2) DEFAULT 0,
+        notes TEXT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    const [rows] = await db.query(`SELECT COUNT(*) as cnt FROM customers`);
+    if (rows[0] && rows[0].cnt === 0) {
+      await db.query(`
+        INSERT INTO customers (id, name, company, email, phone, status, total_value) VALUES
+        ('CUST-101', 'Acme Technologies', 'Acme Corp', 'contact@acme.com', '9876543210', 'active', 50000.00),
+        ('CUST-102', 'Kapil Rade', 'VasifyTech Solutions', 'kapil@vasifytech.com', '9988776655', 'active', 120000.00),
+        ('CUST-103', 'Global Retail Systems', 'Global Retail Ltd', 'billing@globalretail.com', '9123456789', 'active', 75000.00);
+      `);
+      console.log("✅ Seeded initial sample customers.");
+    }
+  } catch (err) {
+    console.warn("Customers table init warning:", err.message);
+  }
+}
+ensureCustomersTable();
+
 // GET /api/customers - List all customers with search, filter, and pagination
 router.get('/', optionalAuth, async (req, res) => {
   try {
