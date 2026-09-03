@@ -32,9 +32,9 @@ async function ensureInvoiceTables() {
         place_of_supply VARCHAR(100) DEFAULT 'Maharashtra (27)',
         whatsapp_sent TINYINT(1) DEFAULT 0,
         whatsapp_sent_at DATETIME NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
     `);
 
     await db.query(`
