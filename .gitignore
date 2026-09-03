@@ -3,11 +3,6 @@ node_modules/
 /.pnp
 .pnp.*
 
-# Environment variables
-
-.env.local
-.env.*.local
-!.env.example
 
 # Logs
 logs

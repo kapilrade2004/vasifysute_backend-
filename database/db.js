@@ -4,13 +4,12 @@ require('dotenv').config();
 function getPoolConfig() {
   const databaseUrl = process.env.DATABASE_URL || process.env.MYSQL_URL;
 
-  // SSL is required on most cloud hosts (TiDB, Aiven, Railway, etc.)
+  // SSL is required on some cloud hosts
   const isCloudHost = databaseUrl && (
     databaseUrl.includes('tidbcloud.com') ||
     databaseUrl.includes('aivencloud.com') ||
     databaseUrl.includes('railway.app') ||
-    databaseUrl.includes('clever-cloud.com') ||
-    databaseUrl.includes('render.com')
+    databaseUrl.includes('clever-cloud.com')
   );
 
   const useSsl = process.env.DB_SSL === 'true' || isCloudHost;
@@ -41,6 +40,7 @@ function getPoolConfig() {
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
+    connectTimeout: 15000,
     ...(sslConfig ? { ssl: sslConfig } : {})
   };
 }
@@ -60,7 +60,7 @@ async function initDB() {
   const dbName = config.database || process.env.DB_NAME || 'vt_suite';
 
   // Step 1: Attempt to create database if on local instance (ignored on cloud if permission restricted)
-  if (!config.uri && config.host === 'localhost') {
+  if (!config.uri && (config.host === 'localhost' || config.host === '127.0.0.1')) {
     try {
       const rootConn = await mysql.createConnection({
         host: config.host,
@@ -71,14 +71,14 @@ async function initDB() {
       await rootConn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\`;`);
       await rootConn.end();
     } catch (err) {
-      // Managed databases often disallow creating new DBs; proceed to use default
+      // Ignore if cannot create database
     }
   }
 
   // Step 2: Initialize connection pool
   const dbPool = getPool();
 
-  // Step 3: Initialize all tables
+  // Step 3: Initialize tables (Universal MySQL 5.5 - 8.0+ compatible)
   try {
     // 3.1 Users table
     await dbPool.query(`
@@ -92,12 +92,12 @@ async function initDB() {
         trial_ends_at DATETIME NULL,
         trial_status VARCHAR(20) DEFAULT 'active',
         reminder_sent_at DATETIME NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
     `);
 
-    // Auto-migration: ensure trial columns exist on users
+    // Auto-migration columns if needed
     try {
       await dbPool.query(`ALTER TABLE users ADD COLUMN service_needed VARCHAR(100) DEFAULT 'full_suite' AFTER company_name;`);
     } catch (e) {}
@@ -111,7 +111,7 @@ async function initDB() {
       await dbPool.query(`ALTER TABLE users ADD COLUMN reminder_sent_at DATETIME NULL AFTER trial_status;`);
     } catch (e) {}
 
-    // Backfill any missing trial_ends_at
+    // Backfill missing trial_ends_at
     try {
       await dbPool.query(`
         UPDATE users 
@@ -127,9 +127,9 @@ async function initDB() {
         user_id INT NULL,
         customer_id VARCHAR(50) NULL,
         invoice_number VARCHAR(100) NOT NULL,
-        customer_name VARCHAR(255) NULL,
-        customer_company VARCHAR(255) NULL,
-        customer_email VARCHAR(255) NULL,
+        customer_name VARCHAR(150) NULL,
+        customer_company VARCHAR(150) NULL,
+        customer_email VARCHAR(150) NULL,
         customer_phone VARCHAR(50) NULL,
         amount DECIMAL(15,2) DEFAULT 0,
         tax DECIMAL(5,2) DEFAULT 18,
@@ -144,9 +144,9 @@ async function initDB() {
         place_of_supply VARCHAR(100) DEFAULT 'Maharashtra (27)',
         whatsapp_sent TINYINT(1) DEFAULT 0,
         whatsapp_sent_at DATETIME NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
     `);
 
     // 3.3 Invoice Items table
@@ -159,12 +159,12 @@ async function initDB() {
         rate DECIMAL(15,2) DEFAULT 0,
         amount DECIMAL(15,2) DEFAULT 0,
         hsn VARCHAR(50) DEFAULT '998313',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
     `);
 
-    console.log(`✅ MySQL Database '${dbName}' & Tables (users, invoices, invoice_items) ready.`);
+    console.log(`✅ MySQL Database '${dbName}' (${config.host}) & Tables (users, invoices, invoice_items) ready.`);
   } catch (error) {
     console.error('❌ Database Initialization Warning:', error.message);
   }
