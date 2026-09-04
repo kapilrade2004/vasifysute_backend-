@@ -21,6 +21,7 @@ const tasksRoutes     = require('./routes/tasks.routes');
 const hrRoutes        = require('./routes/hr.routes');
 const projectRoutes   = require('./routes/projects.routes');
 const workspaceRoutes = require('./routes/workspace.routes');
+const activitiesRoutes = require('./routes/activities.routes');
 const masterAdminRoutes = require('./src/admin/admin.routes');
 
 const app = express();
@@ -38,6 +39,7 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/leads', leadsRoutes);
 app.use('/api/deals', dealsRoutes);
 app.use('/api/tasks', tasksRoutes);
+app.use('/api/activities', activitiesRoutes);
 app.use('/api/hr', hrRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/workspace', workspaceRoutes);

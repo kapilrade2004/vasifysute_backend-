@@ -165,7 +165,7 @@ router.post('/', optionalAuth, async (req, res) => {
 });
 
 // PUT /api/tasks/:id - Update task
-router.put('/:id', optionalAuth, async (req, res) => {
+const handleUpdateTask = async (req, res) => {
   try {
     const { id } = req.params;
     const { title, description, type, priority, status, assigned_to, due_date } = req.body;
@@ -208,7 +208,10 @@ router.put('/:id', optionalAuth, async (req, res) => {
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Failed to update task.' });
   }
-});
+};
+
+router.put('/:id', optionalAuth, handleUpdateTask);
+router.patch('/:id', optionalAuth, handleUpdateTask);
 
 // DELETE /api/tasks/:id - Delete task
 router.delete('/:id', optionalAuth, async (req, res) => {

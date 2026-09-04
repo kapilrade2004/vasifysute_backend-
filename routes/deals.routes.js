@@ -155,7 +155,7 @@ router.post('/', optionalAuth, async (req, res) => {
 });
 
 // PUT /api/deals/:id - Update deal
-router.put('/:id', optionalAuth, async (req, res) => {
+const handleUpdateDeal = async (req, res) => {
   try {
     const { id } = req.params;
     const { title, value, stage, probability, expected_close_date, assigned_to, notes } = req.body;
@@ -192,7 +192,10 @@ router.put('/:id', optionalAuth, async (req, res) => {
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Failed to update deal.' });
   }
-});
+};
+
+router.put('/:id', optionalAuth, handleUpdateDeal);
+router.patch('/:id', optionalAuth, handleUpdateDeal);
 
 // DELETE /api/deals/:id - Delete deal
 router.delete('/:id', optionalAuth, async (req, res) => {

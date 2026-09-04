@@ -162,7 +162,7 @@ router.post('/', optionalAuth, async (req, res) => {
 });
 
 // PUT /api/customers/:id - Update customer
-router.put('/:id', optionalAuth, async (req, res) => {
+const handleUpdateCustomer = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, email, phone, company, address, status, total_value, notes } = req.body;
@@ -200,7 +200,10 @@ router.put('/:id', optionalAuth, async (req, res) => {
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Failed to update customer.' });
   }
-});
+};
+
+router.put('/:id', optionalAuth, handleUpdateCustomer);
+router.patch('/:id', optionalAuth, handleUpdateCustomer);
 
 // DELETE /api/customers/:id - Delete customer
 router.delete('/:id', optionalAuth, async (req, res) => {

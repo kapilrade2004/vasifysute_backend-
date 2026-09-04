@@ -12,28 +12,48 @@ function generateLeadId() {
   return `LEAD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
 
-// ── Auto-create leads table if missing ───────────────────────────────────────
+// ── Auto-create / migrate leads table ───────────────────────────────────────
 async function ensureLeadsTable() {
   try {
     await db.query(`
       CREATE TABLE IF NOT EXISTS leads (
-        id          VARCHAR(50) PRIMARY KEY,
-        user_id     INT NULL,
-        name        VARCHAR(150) NOT NULL,
-        company     VARCHAR(150) NOT NULL,
-        email       VARCHAR(150) NULL,
-        phone       VARCHAR(50) NULL,
-        source      VARCHAR(80) DEFAULT 'Website',
-        stage       VARCHAR(80) DEFAULT 'New',
-        value       DECIMAL(15,2) DEFAULT 0,
-        assigned_to VARCHAR(150) NULL,
-        notes       TEXT NULL,
-        created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at  DATETIME NULL,
+        id              VARCHAR(50) PRIMARY KEY,
+        organization_id VARCHAR(50) NULL,
+        user_id         INT NULL,
+        name            VARCHAR(150) NOT NULL,
+        company         VARCHAR(150) NOT NULL,
+        email           VARCHAR(150) NULL,
+        phone           VARCHAR(50) NULL,
+        whatsapp        VARCHAR(50) NULL,
+        source          VARCHAR(80) DEFAULT 'Website',
+        stage           VARCHAR(80) DEFAULT 'New',
+        priority        VARCHAR(50) DEFAULT 'Medium',
+        value           DECIMAL(15,2) DEFAULT 0,
+        assigned_to     VARCHAR(150) NULL,
+        follow_up_date  DATETIME NULL,
+        notes           TEXT NULL,
+        created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at      DATETIME NULL,
         INDEX idx_leads_user (user_id),
+        INDEX idx_leads_org (organization_id),
         INDEX idx_leads_stage (stage)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    // Safely add any columns that may not exist in older MySQL table instances
+    const alterColumns = [
+      "ALTER TABLE leads ADD COLUMN organization_id VARCHAR(50) NULL AFTER id",
+      "ALTER TABLE leads ADD COLUMN whatsapp VARCHAR(50) NULL AFTER phone",
+      "ALTER TABLE leads ADD COLUMN priority VARCHAR(50) DEFAULT 'Medium' AFTER stage",
+      "ALTER TABLE leads ADD COLUMN follow_up_date DATETIME NULL AFTER assigned_to"
+    ];
+    for (const sql of alterColumns) {
+      try {
+        await db.query(sql);
+      } catch (e) {
+        // Ignored if column already exists
+      }
+    }
     console.log('✅ Leads table ready.');
   } catch (err) {
     console.warn('Leads table auto-create warning:', err.message);
@@ -106,44 +126,69 @@ router.get('/:id', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /api/leads — create lead
-// Body: { userId, name, company, email, phone, source, stage, value, assignedTo, notes }
+// POST /api/leads — create lead (Supports Quick Create with only Name & Phone)
+// Body: { userId, organizationId, name, company, email, phone, whatsapp, source, stage, priority, value, assignedTo, followUpDate, notes }
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/', async (req, res) => {
   try {
     const {
-      userId, name, company, email, phone,
-      source, stage, value, assignedTo, notes
+      userId, organizationId, name, company, email, phone, whatsapp,
+      source, stage, priority, value, assignedTo, followUpDate, notes
     } = req.body;
 
     if (!name || String(name).trim().length < 1) {
       return res.status(400).json({ success: false, message: 'Lead name is required.' });
     }
-    if (!company || String(company).trim().length < 1) {
-      return res.status(400).json({ success: false, message: 'Company name is required.' });
-    }
 
     const leadId = generateLeadId();
     const leadValue = parseFloat(value) || 0;
+    const resolvedCompany = company && String(company).trim().length > 0 
+      ? String(company).trim() 
+      : `${String(name).trim()} (Direct)`;
+    const resolvedPhone = phone ? String(phone).trim() : null;
+    const resolvedWhatsapp = whatsapp ? String(whatsapp).trim() : resolvedPhone;
+    const resolvedStage = stage || 'New';
+    const resolvedPriority = priority || 'Medium';
 
     await db.query(
       `INSERT INTO leads
-        (id, user_id, name, company, email, phone, source, stage, value, assigned_to, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (id, organization_id, user_id, name, company, email, phone, whatsapp, source, stage, priority, value, assigned_to, follow_up_date, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       sanitize(
         leadId,
+        organizationId || null,
         userId || null,
         String(name).trim(),
-        String(company).trim(),
+        resolvedCompany,
         email ? String(email).trim().toLowerCase() : null,
-        phone ? String(phone).trim() : null,
+        resolvedPhone,
+        resolvedWhatsapp,
         source || 'Website',
-        stage || 'New',
+        resolvedStage,
+        resolvedPriority,
         leadValue,
         assignedTo || null,
+        followUpDate ? new Date(followUpDate) : null,
         notes || null
       )
     );
+
+    // Auto-log creation activity
+    try {
+      await db.query(
+        `INSERT INTO activities (id, organization_id, user_id, entity_type, entity_id, type, title, description, completed_at)
+         VALUES (?, ?, ?, 'lead', ?, 'created', 'Lead created', ?, NOW())`,
+        sanitize(
+          `ACT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          organizationId || null,
+          userId || null,
+          leadId,
+          `Initial creation via ${source || 'Direct Entry'}`
+        )
+      );
+    } catch (actErr) {
+      console.warn('Could not auto-log lead creation activity:', actErr.message);
+    }
 
     const [rows] = await db.query(`SELECT * FROM leads WHERE id = ?`, [leadId]);
     return res.status(201).json({
@@ -158,8 +203,138 @@ router.post('/', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PATCH /api/leads/:id — Atomic Single/Multi-Field Inline Edit
+// Body: any subset of { name, company, email, phone, whatsapp, source, stage, priority, value, assignedTo, assigned_to, followUpDate, follow_up_date, notes }
+// ─────────────────────────────────────────────────────────────────────────────
+router.patch('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const body = req.body;
+
+    const [existingRows] = await db.query(`SELECT * FROM leads WHERE id = ?`, [id]);
+    if (!existingRows || existingRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Lead not found.' });
+    }
+    const existing = existingRows[0];
+
+    const updates = [];
+    const params = [];
+
+    if (body.name !== undefined) {
+      updates.push('name = ?');
+      params.push(String(body.name).trim());
+    }
+    if (body.company !== undefined) {
+      updates.push('company = ?');
+      params.push(String(body.company).trim());
+    }
+    if (body.email !== undefined) {
+      updates.push('email = ?');
+      params.push(body.email ? String(body.email).trim().toLowerCase() : null);
+    }
+    if (body.phone !== undefined) {
+      updates.push('phone = ?');
+      params.push(body.phone ? String(body.phone).trim() : null);
+    }
+    if (body.whatsapp !== undefined) {
+      updates.push('whatsapp = ?');
+      params.push(body.whatsapp ? String(body.whatsapp).trim() : null);
+    }
+    if (body.source !== undefined) {
+      updates.push('source = ?');
+      params.push(body.source || 'Website');
+    }
+    if (body.stage !== undefined) {
+      updates.push('stage = ?');
+      params.push(body.stage);
+    }
+    if (body.priority !== undefined) {
+      updates.push('priority = ?');
+      params.push(body.priority);
+    }
+    if (body.value !== undefined) {
+      updates.push('value = ?');
+      params.push(parseFloat(body.value) || 0);
+    }
+    if (body.assignedTo !== undefined || body.assigned_to !== undefined) {
+      updates.push('assigned_to = ?');
+      params.push(body.assignedTo || body.assigned_to || null);
+    }
+    if (body.followUpDate !== undefined || body.follow_up_date !== undefined) {
+      const fDate = body.followUpDate || body.follow_up_date;
+      updates.push('follow_up_date = ?');
+      params.push(fDate ? new Date(fDate) : null);
+    }
+    if (body.notes !== undefined) {
+      updates.push('notes = ?');
+      params.push(body.notes || null);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid fields provided to update.' });
+    }
+
+    updates.push('updated_at = NOW()');
+    params.push(id);
+
+    await db.query(`UPDATE leads SET ${updates.join(', ')} WHERE id = ?`, sanitize(...params));
+
+    // Automated activity logs on status/stage change
+    if (body.stage && body.stage !== existing.stage) {
+      try {
+        await db.query(
+          `INSERT INTO activities (id, organization_id, user_id, entity_type, entity_id, type, title, description, completed_at)
+           VALUES (?, ?, ?, 'lead', ?, 'status_change', ?, ?, NOW())`,
+          sanitize(
+            `ACT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            existing.organization_id || null,
+            existing.user_id || null,
+            id,
+            `Stage updated to ${body.stage}`,
+            `Changed from ${existing.stage} to ${body.stage}`
+          )
+        );
+      } catch (actErr) {
+        console.warn('Could not auto-log stage change activity:', actErr.message);
+      }
+    }
+
+    // Automated activity log on follow-up schedule change
+    const newFollowUp = body.followUpDate || body.follow_up_date;
+    if (newFollowUp && newFollowUp !== existing.follow_up_date) {
+      try {
+        await db.query(
+          `INSERT INTO activities (id, organization_id, user_id, entity_type, entity_id, type, title, description, scheduled_at, completed_at)
+           VALUES (?, ?, ?, 'lead', ?, 'follow_up', ?, ?, ?, NOW())`,
+          sanitize(
+            `ACT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            existing.organization_id || null,
+            existing.user_id || null,
+            id,
+            `Follow-up scheduled`,
+            `Scheduled for ${new Date(newFollowUp).toLocaleDateString()}`,
+            new Date(newFollowUp)
+          )
+        );
+      } catch (actErr) {
+        console.warn('Could not auto-log follow-up activity:', actErr.message);
+      }
+    }
+
+    const [refetched] = await db.query(`SELECT * FROM leads WHERE id = ?`, [id]);
+    return res.status(200).json({
+      success: true,
+      message: 'Lead updated successfully.',
+      lead: refetched[0]
+    });
+  } catch (err) {
+    console.error('Error in atomic PATCH lead:', err);
+    return res.status(500).json({ success: false, message: 'Failed to update lead.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PUT /api/leads/:id — full update
-// Body: { name, company, email, phone, source, stage, value, assignedTo, notes }
 // ─────────────────────────────────────────────────────────────────────────────
 router.put('/:id', async (req, res) => {
   try {
