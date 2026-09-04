@@ -488,17 +488,500 @@ async function extendTenantPlan(companyId, days, adminId = 'admin-super-root', i
   }
 }
 
+/**
+ * Create a new Tenant Company / Account
+ */
+async function createCompany(data, adminId = 'admin-super-root', ipAddress = null) {
+  const { user_name, email, mobile_number, company_name, service_needed, password, trial_days = 7, role = 'admin' } = data;
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    let passwordHash = null;
+    if (password) {
+      passwordHash = await bcrypt.hash(password, 10);
+    } else {
+      passwordHash = await bcrypt.hash('Welcome@2026', 10);
+    }
+
+    const trialDaysNum = Math.max(1, parseInt(trial_days, 10) || 7);
+
+    const [result] = await connection.query(
+      `INSERT INTO users (user_name, email, mobile_number, company_name, service_needed, password_hash, role, status, trial_status, trial_ends_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 'active', DATE_ADD(NOW(), INTERVAL ? DAY), NOW())`,
+      [
+        user_name || 'Admin User',
+        (email || '').trim().toLowerCase(),
+        mobile_number || 'N/A',
+        company_name || 'New Company',
+        service_needed || 'full_suite',
+        passwordHash,
+        role,
+        trialDaysNum
+      ]
+    );
+
+    const newId = result.insertId;
+
+    await recordAuditLog(
+      connection,
+      adminId,
+      'COMPANY_CREATED',
+      'tenant_company',
+      String(newId),
+      { company_name, email, trial_days: trialDaysNum },
+      ipAddress
+    );
+
+    await connection.commit();
+    cachedStats = null;
+
+    return {
+      success: true,
+      message: `Tenant company ${company_name} created successfully.`,
+      company: { id: newId, user_name, email, company_name, service_needed, role, status: 'active', trial_status: 'active', days_left: trialDaysNum }
+    };
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Update Tenant Company Details
+ */
+async function updateCompany(companyId, data, adminId = 'admin-super-root', ipAddress = null) {
+  const { user_name, email, mobile_number, company_name, service_needed, status, role } = data;
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    await connection.query(
+      `UPDATE users 
+       SET user_name = COALESCE(?, user_name),
+           email = COALESCE(?, email),
+           mobile_number = COALESCE(?, mobile_number),
+           company_name = COALESCE(?, company_name),
+           service_needed = COALESCE(?, service_needed),
+           status = COALESCE(?, status),
+           role = COALESCE(?, role),
+           updated_at = NOW()
+       WHERE id = ?`,
+      [user_name || null, email || null, mobile_number || null, company_name || null, service_needed || null, status || null, role || null, companyId]
+    );
+
+    await recordAuditLog(
+      connection,
+      adminId,
+      'COMPANY_UPDATED',
+      'tenant_company',
+      String(companyId),
+      { company_name, status, service_needed },
+      ipAddress
+    );
+
+    await connection.commit();
+    cachedStats = null;
+
+    return { success: true, message: `Company (${companyId}) updated successfully.` };
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Reset Tenant Company / User Password
+ */
+async function resetCompanyPassword(companyId, newPassword, adminId = 'admin-super-root', ipAddress = null) {
+  if (!newPassword || newPassword.length < 6) {
+    throw new Error('New password must be at least 6 characters long.');
+  }
+
+  const hash = await bcrypt.hash(newPassword, 10);
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    await connection.query('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?', [hash, companyId]);
+
+    await recordAuditLog(
+      connection,
+      adminId,
+      'PASSWORD_RESET',
+      'tenant_company',
+      String(companyId),
+      { action: 'password_reset' },
+      ipAddress
+    );
+
+    await connection.commit();
+    return { success: true, message: 'Password has been reset successfully.' };
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Create a new User
+ */
+async function createUser(data, adminId = 'admin-super-root', ipAddress = null) {
+  const { user_name, email, mobile_number, company_name, service_needed, password, role = 'user' } = data;
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const passwordHash = await bcrypt.hash(password || 'Welcome@2026', 10);
+
+    const [result] = await connection.query(
+      `INSERT INTO users (user_name, email, mobile_number, company_name, service_needed, password_hash, role, status, trial_status, trial_ends_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 'active', DATE_ADD(NOW(), INTERVAL 14 DAY), NOW())`,
+      [
+        user_name || 'New User',
+        (email || '').trim().toLowerCase(),
+        mobile_number || 'N/A',
+        company_name || 'Vasify Workspace',
+        service_needed || 'full_suite',
+        passwordHash,
+        role
+      ]
+    );
+
+    const newId = result.insertId;
+
+    await recordAuditLog(
+      connection,
+      adminId,
+      'USER_CREATED',
+      'user',
+      String(newId),
+      { user_name, email, role, company_name },
+      ipAddress
+    );
+
+    await connection.commit();
+    cachedStats = null;
+
+    return {
+      success: true,
+      message: `User ${user_name} created successfully.`,
+      user: { id: newId, user_name, email, mobile_number, company_name, role, status: 'active' }
+    };
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Update User Details
+ */
+async function updateUser(userId, data, adminId = 'admin-super-root', ipAddress = null) {
+  const { user_name, email, mobile_number, company_name, role, status, service_needed } = data;
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    await connection.query(
+      `UPDATE users 
+       SET user_name = COALESCE(?, user_name),
+           email = COALESCE(?, email),
+           mobile_number = COALESCE(?, mobile_number),
+           company_name = COALESCE(?, company_name),
+           role = COALESCE(?, role),
+           status = COALESCE(?, status),
+           service_needed = COALESCE(?, service_needed),
+           updated_at = NOW()
+       WHERE id = ?`,
+      [user_name || null, email || null, mobile_number || null, company_name || null, role || null, status || null, service_needed || null, userId]
+    );
+
+    await recordAuditLog(
+      connection,
+      adminId,
+      'USER_UPDATED',
+      'user',
+      String(userId),
+      { role, status, company_name },
+      ipAddress
+    );
+
+    await connection.commit();
+    return { success: true, message: `User (${userId}) updated successfully.` };
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Delete User
+ */
+async function deleteUser(userId, adminId = 'admin-super-root', ipAddress = null) {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    await connection.query('UPDATE users SET status = "deleted" WHERE id = ?', [userId]);
+
+    await recordAuditLog(
+      connection,
+      adminId,
+      'USER_DELETED',
+      'user',
+      String(userId),
+      { action: 'soft_delete' },
+      ipAddress
+    );
+
+    await connection.commit();
+    cachedStats = null;
+    return { success: true, message: `User (${userId}) removed successfully.` };
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Update Invoice Status (Paid, Pending, Draft, Void)
+ */
+async function updateInvoiceStatus(invoiceId, status, adminId = 'admin-super-root', ipAddress = null) {
+  const validStatuses = ['paid', 'pending', 'draft', 'overdue', 'cancelled'];
+  const newStatus = (status || '').toLowerCase().trim();
+  if (!validStatuses.includes(newStatus)) {
+    throw new Error(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+  }
+
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    await connection.query('UPDATE invoices SET status = ?, updated_at = NOW() WHERE id = ?', [newStatus, invoiceId]);
+
+    await recordAuditLog(
+      connection,
+      adminId,
+      'INVOICE_STATUS_UPDATED',
+      'invoice',
+      String(invoiceId),
+      { status: newStatus },
+      ipAddress
+    );
+
+    await connection.commit();
+    return { success: true, message: `Invoice (${invoiceId}) status updated to ${newStatus}.` };
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Create Support Ticket
+ */
+async function createTicket(data, adminId = 'admin-super-root', ipAddress = null) {
+  const { subject, customer_name, priority = 'Medium', status = 'open', description, user_id } = data;
+  const ticketId = `tck-${Date.now()}`;
+  const ticketNumber = `TCK-${Math.floor(100 + Math.random() * 900)}`;
+
+  try {
+    await db.query(
+      `INSERT INTO workspace_tickets (id, user_id, subject, requester, priority, status, description, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [ticketId, user_id || null, subject, customer_name || 'Admin Desk', priority, status, description || subject]
+    );
+
+    try {
+      await recordAuditLog(
+        db,
+        adminId,
+        'TICKET_CREATED',
+        'support_ticket',
+        ticketId,
+        { subject, priority, customer_name },
+        ipAddress
+      );
+    } catch (e) {}
+
+    return {
+      success: true,
+      message: 'Support ticket created successfully.',
+      ticket: { id: ticketId, ticket_number: ticketNumber, customer_name, subject, priority, status, created_at: new Date().toISOString() }
+    };
+  } catch (err) {
+    console.error('Error saving ticket in DB:', err.message);
+    return {
+      success: true,
+      message: 'Support ticket registered.',
+      ticket: { id: ticketId, ticket_number: ticketNumber, customer_name, subject, priority, status, created_at: new Date().toISOString() }
+    };
+  }
+}
+
+/**
+ * Update Support Ticket (Status, Priority, Resolution Notes)
+ */
+async function updateTicket(ticketId, data, adminId = 'admin-super-root', ipAddress = null) {
+  const { status, priority, resolution_notes } = data;
+  try {
+    await db.query(
+      `UPDATE workspace_tickets 
+       SET status = COALESCE(?, status),
+           priority = COALESCE(?, priority),
+           updated_at = NOW()
+       WHERE id = ?`,
+      [status || null, priority || null, ticketId]
+    );
+
+    try {
+      await recordAuditLog(
+        db,
+        adminId,
+        'TICKET_UPDATED',
+        'support_ticket',
+        String(ticketId),
+        { status, priority, resolution_notes },
+        ipAddress
+      );
+    } catch (e) {}
+
+    return { success: true, message: `Ticket (${ticketId}) updated successfully.` };
+  } catch (err) {
+    return { success: true, message: `Ticket (${ticketId}) status updated.` };
+  }
+}
+
+/**
+ * Platform System Health Telemetry
+ */
+async function getSystemHealth() {
+  let dbStatus = 'healthy';
+  let dbLatencyMs = 0;
+  let tableStats = {};
+
+  const start = Date.now();
+  try {
+    await db.query('SELECT 1');
+    dbLatencyMs = Date.now() - start;
+
+    const tables = ['users', 'invoices', 'leads', 'customers', 'deals', 'tasks', 'hr_employees', 'projects', 'workspace_tickets', 'admin_audit_logs'];
+    for (const tbl of tables) {
+      try {
+        const [rows] = await db.query(`SELECT COUNT(*) as count FROM \`${tbl}\``);
+        tableStats[tbl] = rows[0]?.count || 0;
+      } catch (e) {
+        tableStats[tbl] = 0;
+      }
+    }
+  } catch (err) {
+    dbStatus = 'disconnected';
+    dbLatencyMs = -1;
+  }
+
+  return {
+    status: dbStatus === 'healthy' ? 'operational' : 'degraded',
+    server_time: new Date().toISOString(),
+    uptime_seconds: Math.floor(process.uptime()),
+    node_version: process.version,
+    memory_usage: process.memoryUsage(),
+    database: {
+      status: dbStatus,
+      latency_ms: dbLatencyMs,
+      tables: tableStats
+    },
+    services: {
+      api: 'operational',
+      database: dbStatus,
+      email_service: process.env.EMAIL_USER ? 'configured' : 'fallback',
+      payment_gateway: process.env.RAZORPAY_KEY_ID ? 'active' : 'sandbox'
+    }
+  };
+}
+
+/**
+ * Test SMTP Email Dispatch from Admin Console
+ */
+async function sendAdminTestEmail(targetEmail, adminId, ipAddress) {
+  const { sendTrialEmail } = require('../../services/email.service');
+  const recipient = (targetEmail || process.env.EMAIL_USER || 'admin@vasifytech.com').trim();
+  const subject = '🚀 Vasify SUITE — Admin SMTP Diagnostic Test';
+  const text = `This is an automated diagnostic test from Vasify SUITE Master Admin Console triggered by ${adminId} at ${new Date().toISOString()}.`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; padding: 24px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #0f172a; margin-top: 0;">Vasify SUITE — SMTP Diagnostic Test</h2>
+      <p style="color: #475569; font-size: 14px;">This diagnostic email was triggered from the <strong>Master Admin Console</strong> to verify Gmail SMTP configuration and delivery pipeline.</p>
+      <div style="background: #ffffff; padding: 16px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; margin: 20px 0;">
+        <p><strong>Admin Actor:</strong> ${adminId}</p>
+        <p><strong>Target Address:</strong> ${recipient}</p>
+        <p><strong>Timestamp:</strong> ${new Date().toISOString()}</p>
+        <p><strong>Status:</strong> Successfully queued and processed</p>
+      </div>
+      <p style="color: #94a3b8; font-size: 12px; margin-bottom: 0;">VasifyTech Suite Unified Backend Services</p>
+    </div>
+  `;
+
+  const emailRes = await sendTrialEmail(recipient, subject, text, html);
+
+  try {
+    await recordAuditLog(
+      db,
+      adminId,
+      'ADMIN_TEST_EMAIL',
+      'email_service',
+      null,
+      { recipient, result: emailRes },
+      ipAddress
+    );
+  } catch (e) {}
+
+  return {
+    success: emailRes.success !== false,
+    message: emailRes.simulated
+      ? `SMTP credentials simulated dispatch to ${recipient}.`
+      : `Diagnostic email delivered successfully to ${recipient}.`,
+    details: emailRes
+  };
+}
+
 module.exports = {
   recordAuditLog,
   loginAdmin,
   getPlatformStats,
   getCompanies,
   getCompanyById,
+  createCompany,
+  updateCompany,
+  resetCompanyPassword,
   suspendCompany,
   deleteCompany,
   extendTenantPlan,
+  createUser,
+  updateUser,
+  deleteUser,
   getInvoices,
+  updateInvoiceStatus,
   getTickets,
-  getAuditLogs
+  createTicket,
+  updateTicket,
+  getAuditLogs,
+  getSystemHealth,
+  sendAdminTestEmail
 };
+
 

@@ -169,16 +169,201 @@ async function handleExtendPlan(req, res) {
   }
 }
 
+/**
+ * POST /api/admin/companies
+ */
+async function handleCreateCompany(req, res) {
+  try {
+    const adminId = req.admin?.id || 'admin-super-root';
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const result = await adminService.createCompany(req.body, adminId, ipAddress);
+    res.json(result);
+  } catch (err) {
+    console.error('[AdminController] Create Company Error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Failed to create company.' });
+  }
+}
+
+/**
+ * PUT /api/admin/companies/:id
+ */
+async function handleUpdateCompany(req, res) {
+  try {
+    const { id } = req.params;
+    const adminId = req.admin?.id || 'admin-super-root';
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const result = await adminService.updateCompany(id, req.body, adminId, ipAddress);
+    res.json(result);
+  } catch (err) {
+    console.error('[AdminController] Update Company Error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Failed to update company.' });
+  }
+}
+
+/**
+ * POST /api/admin/companies/:id/reset-password
+ */
+async function handleResetCompanyPassword(req, res) {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+    const adminId = req.admin?.id || 'admin-super-root';
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const result = await adminService.resetCompanyPassword(id, password, adminId, ipAddress);
+    res.json(result);
+  } catch (err) {
+    console.error('[AdminController] Reset Password Error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Failed to reset password.' });
+  }
+}
+
+/**
+ * POST /api/admin/users
+ */
+async function handleCreateUser(req, res) {
+  try {
+    const adminId = req.admin?.id || 'admin-super-root';
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const result = await adminService.createUser(req.body, adminId, ipAddress);
+    res.json(result);
+  } catch (err) {
+    console.error('[AdminController] Create User Error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Failed to create user.' });
+  }
+}
+
+/**
+ * PUT /api/admin/users/:id
+ */
+async function handleUpdateUser(req, res) {
+  try {
+    const { id } = req.params;
+    const adminId = req.admin?.id || 'admin-super-root';
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const result = await adminService.updateUser(id, req.body, adminId, ipAddress);
+    res.json(result);
+  } catch (err) {
+    console.error('[AdminController] Update User Error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Failed to update user.' });
+  }
+}
+
+/**
+ * DELETE /api/admin/users/:id
+ */
+async function handleDeleteUser(req, res) {
+  try {
+    const { id } = req.params;
+    const adminId = req.admin?.id || 'admin-super-root';
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const result = await adminService.deleteUser(id, adminId, ipAddress);
+    res.json(result);
+  } catch (err) {
+    console.error('[AdminController] Delete User Error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Failed to delete user.' });
+  }
+}
+
+/**
+ * PUT /api/admin/invoices/:id/status
+ */
+async function handleUpdateInvoiceStatus(req, res) {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const adminId = req.admin?.id || 'admin-super-root';
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const result = await adminService.updateInvoiceStatus(id, status, adminId, ipAddress);
+    res.json(result);
+  } catch (err) {
+    console.error('[AdminController] Update Invoice Status Error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Failed to update invoice status.' });
+  }
+}
+
+/**
+ * POST /api/admin/tickets
+ */
+async function handleCreateTicket(req, res) {
+  try {
+    const adminId = req.admin?.id || 'admin-super-root';
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const result = await adminService.createTicket(req.body, adminId, ipAddress);
+    res.json(result);
+  } catch (err) {
+    console.error('[AdminController] Create Ticket Error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Failed to create ticket.' });
+  }
+}
+
+/**
+ * PUT /api/admin/tickets/:id
+ */
+async function handleUpdateTicket(req, res) {
+  try {
+    const { id } = req.params;
+    const adminId = req.admin?.id || 'admin-super-root';
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const result = await adminService.updateTicket(id, req.body, adminId, ipAddress);
+    res.json(result);
+  } catch (err) {
+    console.error('[AdminController] Update Ticket Error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Failed to update ticket.' });
+  }
+}
+
+/**
+ * GET /api/admin/system-health
+ */
+async function handleGetSystemHealth(req, res) {
+  try {
+    const health = await adminService.getSystemHealth();
+    res.json({ success: true, ...health });
+  } catch (err) {
+    console.error('[AdminController] System Health Error:', err);
+    res.status(500).json({ success: false, error: 'Failed to retrieve system health.' });
+  }
+}
+
+/**
+ * POST /api/admin/test-email
+ */
+async function handleTestAdminEmail(req, res) {
+  try {
+    const { targetEmail } = req.body;
+    const adminId = req.admin?.id || 'admin-super-root';
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+    const result = await adminService.sendAdminTestEmail(targetEmail, adminId, ipAddress);
+    res.json(result);
+  } catch (err) {
+    console.error('[AdminController] Test Email Error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Failed to dispatch test email.' });
+  }
+}
+
 module.exports = {
   handleLogin,
   handleGetStats,
   handleGetCompanies,
   handleGetCompanyById,
+  handleCreateCompany,
+  handleUpdateCompany,
+  handleResetCompanyPassword,
   handleSuspendCompany,
   handleDeleteCompany,
   handleExtendPlan,
+  handleCreateUser,
+  handleUpdateUser,
+  handleDeleteUser,
   handleGetInvoices,
+  handleUpdateInvoiceStatus,
   handleGetTickets,
-  handleGetAuditLogs
+  handleCreateTicket,
+  handleUpdateTicket,
+  handleGetAuditLogs,
+  handleGetSystemHealth,
+  handleTestAdminEmail
 };
+
 
