@@ -1,187 +1,171 @@
-# 🚀 VasifyTech Suite (VT Suite) - System Documentation & Architecture Guide
+# 🚀 Vasify SUITE — System Architecture & Documentation
 
-## 📋 Overview
-
-**VasifyTech Suite (VT Suite)** is an enterprise-grade, all-in-one SaaS Business Management platform designed for small-to-medium enterprises, agencies, and tech companies. The platform integrates CRM, Sales Pipelines, Finance & Invoicing, HR & Payroll, Project Management, and Workspace Support into a unified, high-performance web suite.
+> **VasifyTech Suite (VT Suite)** is an all-in-one, enterprise-grade multi-tenant SaaS business management platform that unifies CRM, Sales Pipelines, Finance & GST Invoicing, HR & Payroll, Project Management, Team Workspace, and an isolated **Master Admin Control Plane** under a high-performance web suite.
 
 ---
 
-## 🏗️ Architecture & Technology Stack
+## 📋 Table of Contents
 
-The application adopts a decoupled frontend-backend architecture:
-
-### 1. Backend REST API (`vasifysute_backend-`)
-- **Runtime**: Node.js
-- **Web Framework**: Express.js (v4.21.2)
-- **Database Layer**: MySQL (supports local MySQL 8.0 & Remote FreeSQLDatabase / SSL) via `mysql2`
-- **Authentication**: JSON Web Tokens (`jsonwebtoken`), Password Hashing (`bcryptjs`)
-- **Notification Services**: Nodemailer (SMTP integration for automated reminders & billing alerts)
-- **Deployment Spec**: Render Cloud Platform (`render.yaml`)
-
-### 2. Frontend Next.js Web App (`vt_suite.1-1`)
-- **Framework**: Next.js 16.3 (App Router with Webpack)
-- **UI & Components**: React 19, Lucide Icons, Radix UI primitives, TailwindCSS v4
-- **State Management**: React Context (`AppContext`, `AuthContext`, `CRMContext`) with optimistic UI fallbacks
-- **Data Visualization**: Recharts analytics graphs
-- **Deployment Spec**: Vercel Cloud Platform
+1. [System Overview](#system-overview)
+2. [High-Level Architecture](#high-level-architecture)
+3. [Technology Stack](#technology-stack)
+4. [Master Admin Control Plane](#master-admin-control-plane)
+5. [Core SaaS Client Modules](#core-saas-client-modules)
+6. [Multi-Tenancy & Data Architecture](#multi-tenancy--data-architecture)
+7. [Role-Based Access Control (RBAC)](#role-based-access-control-rbac)
+8. [Database Schema](#database-schema)
+9. [Complete API Reference](#complete-api-reference)
+10. [Environment Configuration](#environment-configuration)
+11. [Deployment Specifications](#deployment-specifications)
+12. [Development Setup & Scripts](#development-setup--scripts)
 
 ---
 
-## 💡 Core Functional Modules
+## System Overview
 
-### 💼 1. CRM & Sales Pipeline
-- **Leads Directory**: Centralized list of incoming leads with search, source filtering, and stage management.
-- **Kanban Board**: Drag-and-drop deal pipeline (`Lead` ➔ `Demo` ➔ `Proposal` ➔ `Negotiation` ➔ `Won` / `Lost`).
-- **Sales Owner Assignment**: Admin-only reassignment of leads to specific sales representatives.
-- **Closure Tracking**: Follow-up date scheduling and expected closure estimations.
-
-### 💰 2. Finance & Invoicing Engine
-- **Customer Directory**: Complete customer database with GSTIN, street address, city, state, and pincode attributes.
-- **Invoice Generation**: Automated invoice number generation, line-item pricing, HSN codes, and 18% GST tax calculation.
-- **Payment Ledger**: Tracking cumulative client payments (`paidAmount`) and remaining due (`expectedAmount`).
-- **Recurring Retainers**: Weekly, monthly, quarterly, and annual billing subscriptions.
-
-### 👥 3. HR & Payroll System
-- **Employee Directory**: Full staff profile database with role designations and department mappings.
-- **Attendance & Leaves**: Real-time clock-in/out tracking and employee leave request approvals (`Approved` / `Rejected`).
-- **Payroll Ledger**: Automated salary processing, allowance structures, deductions, and Net Pay generation.
-
-### 📁 4. Project & Task Management
-- **Project Directory**: Enterprise projects with deadline tracking, budget status, and task breakdowns.
-- **Task Boards**: Priority levels (`High`, `Medium`, `Low`), assigned team members, and status toggles.
-
-### 🎫 5. Workspace & Support Tickets
-- **Calendar**: Event scheduling and follow-up reminders.
-- **Ticketing System**: Customer support ticket creation, priority levels, and status resolution.
-
-### 🛡️ 6. Master Admin Console
-- **Super Admin Portal**: Restricted master admin access (`/admin/login`).
-- **Platform Telemetry**: Overview of total registered companies, active trial accounts, total invoices, and suite volume.
-- **Role-Based Access Control (RBAC)**: Enforces role permissions (`admin` vs `user`).
+| Property | Value |
+|---|---|
+| **Product Name** | VasifyTech Suite (Vasify SUITE) |
+| **Architecture** | Multi-Tenant Decoupled SaaS (Next.js SPA + Express REST API) |
+| **Target Market** | SMBs, Digital Agencies, Tech Enterprises, Global Freelancers |
+| **Trial Model** | 7-Day Free Trial (Automated lifecycle emails & Admin extensions) |
+| **Taxation Engine** | Configurable Multi-Bracket GST (0%, 5%, 12%, 18%, 28%, exempt) with auto-split CGST/SGST vs IGST |
+| **Admin Plane** | Isolated Super-Admin Control Center (`/admin/*`) with Single Entity Deep Data Inspectors |
 
 ---
 
-## 📡 Backend API Endpoints Reference
-
-All API routes are prefixed with `/api`.
-
-| Route | Method | Description |
-| :--- | :--- | :--- |
-| **Health & Meta** | | |
-| `/` | GET | API Status & Available Route Map |
-| `/health` | GET | Database Connectivity & Health Check |
-| **Authentication** | | |
-| `/api/auth/register` | POST | Register new company user account |
-| `/api/auth/login` | POST | Authenticate user & issue JWT token |
-| `/api/auth/verify` | GET | Verify active JWT token session |
-| **Customers** | | |
-| `/api/customers` | GET | Fetch paginated customer directory |
-| `/api/customers` | POST | Create new customer record |
-| `/api/customers/:id` | PUT | Update customer profile details |
-| `/api/customers/:id` | DELETE | Delete customer record |
-| **Invoices** | | |
-| `/api/invoices` | GET | List generated invoices |
-| `/api/invoices` | POST | Issue standalone or recurring invoice |
-| `/api/invoices/:id` | PUT | Update invoice payment status & items |
-| **Leads & Deals** | | |
-| `/api/leads` | GET / POST | Manage sales leads |
-| `/api/deals` | GET / POST | Manage pipeline deal stages |
-| **HR & Workspace** | | |
-| `/api/hr/employees` | GET / POST | Manage staff directory |
-| `/api/hr/attendance` | GET / POST | Attendance log entries |
-| `/api/hr/leaves` | GET / PUT | Employee leave requests |
-| `/api/hr/payroll` | GET / POST | Process monthly staff payroll |
-| `/api/workspace/tickets`| GET / POST | Customer support tickets |
-| **Master Admin** | | |
-| `/api/admin/login` | POST | Super admin authentication |
-| `/api/admin/stats` | GET | Global system statistics & metrics |
-
----
-
-## 🗄️ Database Schema Structure
-
-The MySQL database (`vt_suite`) comprises the following core relational tables:
+## High-Level Architecture
 
 ```
-vt_suite (Database)
- ├── users (id, name, email, password_hash, company_name, role, status, created_at)
- ├── customers (id, name, email, phone, company, address, city, state, pincode, gstin, total_value, status, created_at)
- ├── leads (id, name, phone, whatsapp, email, company, service, source, stage, priority, total_amount, expected_amount, follow_up_date)
- ├── deals (id, lead_id, title, stage, value, close_date, sales_owner)
- ├── invoices (id, invoice_number, customer_id, customer_name, issue_date, due_date, subtotal, tax_amount, total_amount, status)
- ├── invoice_items (id, invoice_id, description, hsn, quantity, rate, amount)
- ├── customer_payments (id, customer_id, amount, payment_date, notes)
- ├── employees (id, name, email, role, department, salary, join_date, status)
- ├── attendance (id, employee_id, date, status, check_in, check_out)
- ├── leaves (id, employee_id, leave_type, start_date, end_date, reason, status)
- ├── payroll (id, employee_id, month, basic_salary, allowance, deductions, net_salary, status)
- ├── projects (id, name, client_name, budget, status, start_date, end_date)
- ├── tasks (id, project_id, title, assignee, priority, status, due_date)
- └── tickets (id, ticket_number, customer_name, subject, priority, status, created_at)
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           CLIENT BROWSERS                               │
+│              Tenant Users & Staff           Master Super-Admins         │
+└───────────────────────┬───────────────────────────────┬─────────────────┘
+                        │ HTTPS                         │ HTTPS
+┌───────────────────────▼───────────────────────────────▼─────────────────┐
+│                   FRONTEND WEB APPLICATION (`vt-suite`)                 │
+│         Next.js 16 + React 19 + TypeScript + TailwindCSS v4             │
+│         Deployed on: Cloudflare Workers Static Assets (SPA) / Render   │
+│                                                                         │
+│  ┌─────────────────────────────────┐   ┌─────────────────────────────┐  │
+│  │     TENANT CLIENT WORKSPACE     │   │   MASTER ADMIN CONTROL      │  │
+│  │  • CRM & Real-Time Pipeline     │   │   • Global Mission Control  │  │
+│  │  • Finance & GST Invoicing      │   │   • Deep Tenant Inspector   │  │
+│  │  • HR & Payroll Ledger          │   │   • Cross-Tenant Invoices   │  │
+│  │  • Projects & Task Boards       │   │   • Cross-Tenant Tickets    │  │
+│  │  • Activity Timeline Drawer     │   │   • Forensic Audit Trail    │  │
+│  │  • Workspace Calendar & Support │   │   • System Health & DB Ping │  │
+│  └─────────────────────────────────┘   └─────────────────────────────┘  │
+└─────────────────────────────────┬───────────────────────────────────────┘
+                                  │ REST API (Bearer JWT / Admin Token)
+┌─────────────────────────────────▼───────────────────────────────────────┐
+│                 BACKEND REST API (`vasifysute_backend-`)                │
+│                 Node.js 20+ / Express.js (Modular Monolith)             │
+│                 Deployed on: Render Cloud (Oregon)                      │
+│                                                                         │
+│  ┌─────────────────────────────────┐   ┌─────────────────────────────┐  │
+│  │      TENANT BUSINESS LOGIC      │   │     MASTER ADMIN MODULE     │  │
+│  │  • Auth & User Management       │   │   • Isolated Admin JWT      │  │
+│  │  • Invoices & Payment Receipts  │   │   • Transactional Audit     │  │
+│  │  • Leads, Deals & Timeline      │   │   • System Telemetry / Ping │  │
+│  │  • HR Payroll & Attendance      │   │   • SMTP Diagnostic Service │  │
+│  └─────────────────────────────────┘   └─────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │        Notification Engine: Nodemailer (Gmail SMTP)               │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────┬───────────────────────────────────────┘
+                                  │ Connection Pool (mysql2 / SSL)
+┌─────────────────────────────────▼───────────────────────────────────────┐
+│                           MYSQL DATABASE                                │
+│       Production: Remote FreeSQLDatabase / TiDB Cloud / Aiven           │
+│       Development: Local MySQL 8.0 Engine (3306)                        │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## ⚙️ Environment Configuration (`.env`)
+## Complete API Reference
 
-Create a `.env` file in `vasifysute_backend-`:
+All endpoints are prefixed with `/api`.
 
+### 1. Master Admin API (`/api/admin/*`)
+*Guarded by `verifyAdminToken` and `requireRole('super_admin')` unless specified.*
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/admin/login` | Super admin login (Rate limited: 5 attempts / 15m) |
+| `GET` | `/api/admin/stats` | Cached aggregate platform telemetry |
+| `GET` | `/api/admin/system-health` | Live MySQL ping latency, table row counts, server uptime |
+| `POST` | `/api/admin/test-email` | Diagnostic SMTP email dispatcher |
+| `GET` | `/api/admin/companies` | List all tenant companies |
+| `POST` | `/api/admin/companies` | Register new tenant company with owner account |
+| `GET` | `/api/admin/companies/:id` | Deep tenant details (leads, deals, invoices, users) |
+| `PUT` | `/api/admin/companies/:id` | Update company profile, service tier, max seats |
+| `PUT` | `/api/admin/companies/:id/extend-plan` | Extend tenant subscription days |
+| `POST` | `/api/admin/companies/:id/reset-password` | Reset company owner password |
+| `PUT` | `/api/admin/companies/:id/suspend` | Suspend or reactivate company (Audit logged) |
+| `DELETE` | `/api/admin/companies/:id/delete` | Soft delete tenant company (Audit logged) |
+| `POST` | `/api/admin/users` | Add user directly assigned to any tenant |
+| `PUT` | `/api/admin/users/:id` | Update user details, role, status, company |
+| `PUT` | `/api/admin/users/:id/extend-plan` | Extend individual user plan |
+| `DELETE` | `/api/admin/users/:id` | Delete user account (Audit logged) |
+| `GET` | `/api/admin/invoices` | Cross-tenant invoice audit directory |
+| `PUT` | `/api/admin/invoices/:id/status` | Override invoice payment status with admin note |
+| `GET` | `/api/admin/tickets` | Cross-tenant support tickets queue |
+| `POST` | `/api/admin/tickets` | Create support ticket |
+| `PUT` | `/api/admin/tickets/:id` | Update ticket status, priority, and resolution notes |
+| `GET` | `/api/admin/audit-logs` | Filterable forensic audit trail |
+
+### 2. Tenant Client API (`/api/*`)
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/auth/register` | Register new tenant user account |
+| `POST` | `/api/auth/login` | Authenticate tenant user & issue JWT |
+| `GET` | `/api/auth/verify` | Verify active JWT session |
+| `GET` / `POST` | `/api/customers` | Customer directory & client creation |
+| `PUT` / `DELETE` | `/api/customers/:id` | Customer updates & removal |
+| `GET` / `POST` | `/api/invoices` | Tenant invoices list & creation |
+| `PUT` | `/api/invoices/:id` | Invoice payment status updates |
+| `GET` / `POST` | `/api/leads` | Sales leads management |
+| `GET` / `POST` | `/api/deals` | Deal pipeline stages |
+| `GET` / `POST` | `/api/hr/employees` | Staff directory |
+| `GET` / `POST` | `/api/hr/attendance` | Clock-in/out logs |
+| `GET` / `PUT` | `/api/hr/leaves` | Leave requests & manager approvals |
+| `GET` / `POST` | `/api/hr/payroll` | Monthly payroll processing |
+| `GET` / `POST` | `/api/workspace/tickets` | Tenant support tickets |
+
+---
+
+## Environment Configuration
+
+### Backend (`vasifysute_backend-/.env`)
 ```env
-# Server Port
 PORT=5000
+NODE_ENV=production
 
-# Local MySQL Database Configuration
-DB_HOST=localhost
+# Database Credentials
+DB_HOST=sql12.freesqldatabase.com
 DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=root
-DB_NAME=vt_suite
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+DB_NAME=your_db_name
 DB_SSL=false
 
-# JWT Secret Key
-JWT_SECRET=vasifytech_super_secret_jwt_key_2026
+# Authentication Secrets
+JWT_SECRET=super_secret_tenant_jwt_key_2026
+ADMIN_JWT_SECRET=isolated_master_super_admin_jwt_secret_key_2026
 
-# SMTP Email Configuration (Nodemailer)
+# Super Admin Seed Credentials
+ADMIN_INITIAL_EMAIL=admin@vasifytech.com
+ADMIN_INITIAL_PASSWORD=admin123
+ADMIN_INITIAL_NAME=Master Super Admin
+
+# Email Delivery (Gmail SMTP)
 EMAIL_USER=notifications@vasifytech.com
-EMAIL_PASS=your_smtp_password
+EMAIL_PASS=your_gmail_app_password
 ```
 
 ---
 
-## 🛠️ Local Development & Running Guide
-
-### 1. Running Backend Server (`vasifysute_backend-`)
-```bash
-# Navigate to backend directory
-cd vasifysute_backend-
-
-# Install dependencies
-npm install
-
-# Run database migrations / seed (Optional)
-npm run seed
-
-# Start server in development mode
-npm run dev
-# Backend will start on http://localhost:5000
-```
-
-### 2. Running Frontend Client (`vt_suite.1-1`)
-```bash
-# Navigate to frontend directory
-cd vt_suite.1-1
-
-# Install dependencies
-npm install
-
-# Start Next.js development server
-npm run dev
-# Frontend will start on http://localhost:3000
-```
-
----
-
-## 🚀 Production Deployment Workflow
-
-- **Backend (`Render`)**: Managed automatically via `render.yaml`. Connect your GitHub repository to Render as a Web Service running `npm start`.
-- **Frontend (`Vercel`)**: Connect `vt_suite.1-1` root directory to Vercel, set `NEXT_PUBLIC_API_URL=https://<your-render-backend-url>/api`, and build using `npm run build`.
+*Last Updated: September 2026*  
+*Project: Vasify SUITE / VasifyTech Suite*
