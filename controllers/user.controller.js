@@ -475,6 +475,58 @@ async function sendTestEmail(req, res) {
   }
 }
 
+// POST /api/users/login-notification - Dispatch email notification on user workspace login
+async function sendLoginNotification(req, res) {
+  try {
+    const { userId, email } = req.body || {};
+    let user = null;
+
+    if (userId) {
+      user = await UserModel.getUserById(userId);
+    }
+    if (!user && email) {
+      user = await UserModel.findByEmail(email);
+    }
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User record not found.' });
+    }
+
+    const loginTimeStr = new Date().toLocaleString();
+    const subject = `🔐 Workspace Login Alert - VasifyTech Suite`;
+    const text = `Hi ${user.user_name || 'there'}! You successfully logged into your VasifyTech Suite workspace (${user.company_name}) at ${loginTimeStr}.`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="color: #1DA851; margin: 0;">VasifyTech <span style="color: #0f172a;">Suite</span></h2>
+        </div>
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+          <h3 style="color: #166534; margin-top: 0;">🔐 Login Security Alert</h3>
+          <p style="color: #15803d; font-size: 14.5px; line-height: 1.5;">
+            Hi <strong>${user.user_name}</strong>, a successful login to your workspace <strong>${user.company_name}</strong> was recorded at <strong>${loginTimeStr}</strong>.
+          </p>
+        </div>
+        <p style="color: #475569; font-size: 13.5px;">If this was you, no action is needed. You can manage your workspace CRM, HR, Finance, and Projects modules as usual.</p>
+        <div style="text-align: center; margin-top: 28px; padding-top: 18px; border-top: 1px solid #e2e8f0;">
+          <a href="http://localhost:3000/app/crm" style="background: #1DA851; color: #ffffff; padding: 12px 28px; border-radius: 30px; text-decoration: none; font-weight: bold; display: inline-block;">Go to Workspace</a>
+        </div>
+      </div>
+    `;
+
+    sendTrialEmail(user.email, subject, text, html).catch(() => {});
+    console.log(`📧 [LOGIN ALERT SENT] Dispatched workspace login email to ${user.email}`);
+
+    return res.status(200).json({
+      success: true,
+      message: `Login notification email sent to ${user.email}`,
+      user: { id: user.id, email: user.email, name: user.user_name }
+    });
+  } catch (error) {
+    console.error('Error sending login notification email:', error);
+    return res.status(500).json({ success: false, message: 'Failed to send login notification.' });
+  }
+}
+
 module.exports = {
   createUser,
   getUsers,
@@ -483,5 +535,7 @@ module.exports = {
   deleteUser,
   upgradeUser,
   checkTrials,
-  sendTestEmail
+  sendTestEmail,
+  sendLoginNotification
 };
+

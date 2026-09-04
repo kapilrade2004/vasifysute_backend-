@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "seed": "node database/seed.js"
+    "seed": "node database/seed.js",
+    "migrate:admin": "node database/migrate_admin.js",
+    "seed:admin": "node database/seed_admin.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

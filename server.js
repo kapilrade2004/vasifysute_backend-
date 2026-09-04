@@ -21,7 +21,7 @@ const tasksRoutes     = require('./routes/tasks.routes');
 const hrRoutes        = require('./routes/hr.routes');
 const projectRoutes   = require('./routes/projects.routes');
 const workspaceRoutes = require('./routes/workspace.routes');
-const adminRoutes     = require('./routes/admin.routes');
+const masterAdminRoutes = require('./src/admin/admin.routes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -41,7 +41,7 @@ app.use('/api/tasks', tasksRoutes);
 app.use('/api/hr', hrRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/workspace', workspaceRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/admin', masterAdminRoutes);
 
 // Root + health check endpoints
 app.get('/', (req, res) => {

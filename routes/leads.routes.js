@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
+const usageTracker = require('../src/admin/usage_tracker.middleware');
+
+router.use(usageTracker('crm'));
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 const sanitize = (...params) => params.map(p => (p === undefined ? null : p));

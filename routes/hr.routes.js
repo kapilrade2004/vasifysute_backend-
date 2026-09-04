@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
 const { optionalAuth } = require('../middleware/auth');
+const usageTracker = require('../src/admin/usage_tracker.middleware');
+
+router.use(usageTracker('hr'));
 
 const sanitize = (...params) => params.map((p) => (p === undefined ? null : p));
 

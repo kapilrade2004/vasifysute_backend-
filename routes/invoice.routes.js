@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
 const { sendTrialEmail } = require('../services/email.service');
+const usageTracker = require('../src/admin/usage_tracker.middleware');
+
+router.use(usageTracker('finance'));
 
 // Helper to sanitize parameters
 const sanitize = (...params) => params.map((p) => (p === undefined ? null : p));

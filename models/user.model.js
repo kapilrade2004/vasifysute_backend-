@@ -109,6 +109,24 @@ async function findByMobile(mobile_number, excludeId = null) {
   return rows[0] || null;
 }
 
+// Extend user plan by N days
+async function extendPlanDays(id, days) {
+  const daysNum = Math.max(1, parseInt(days, 10) || 7);
+  const sql = `
+    UPDATE users 
+    SET trial_ends_at = CASE 
+          WHEN trial_ends_at IS NOT NULL AND trial_ends_at > NOW() 
+            THEN DATE_ADD(trial_ends_at, INTERVAL ? DAY)
+          ELSE DATE_ADD(NOW(), INTERVAL ? DAY)
+        END,
+        trial_status = CASE WHEN trial_status = 'expired' THEN 'active' ELSE trial_status END,
+        updated_at = NOW()
+    WHERE id = ?
+  `;
+  await db.query(sql, [daysNum, daysNum, id]);
+  return getUserById(id);
+}
+
 module.exports = {
   createUser,
   getAllUsers,
@@ -118,5 +136,7 @@ module.exports = {
   upgradeToPremium,
   updateTrialReminder,
   findByEmail,
-  findByMobile
+  findByMobile,
+  extendPlanDays
 };
+
