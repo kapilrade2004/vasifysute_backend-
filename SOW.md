@@ -555,5 +555,125 @@ VASIFY SUITE
 
 ---
 
+# 46. Vasify Suite — Phased Scope of Work (UI/UX Focus)
+
+This scope is organized into build phases. Each phase lists **what screens/flows exist**, **what states each screen needs**, and **which interaction pattern to use** (inline edit vs. drawer vs. modal vs. full page) — based on your existing SOW/architecture and current SaaS UX practice.
+
+---
+
+## Phase 0 — Design System Foundation (do this before any screen work)
+- **Design tokens**: color scale (brand + semantic: success/warning/danger/info), spacing scale, typography scale, radius, shadow/elevation levels.
+- **Density mode**: Compact tables, tight row height.
+- **Core interaction primitives**:
+  - Inline click-to-edit field (`<InlineField />`)
+  - Drawer/side panel (`<RecordDrawer />`)
+  - Modal (reserved only for short, must-finish tasks)
+  - Full page (for multi-step or heavy-context edits like Invoice builder)
+- **Table component**: sticky header, column resize/reorder/hide, row density toggle, inline edit per cell, bulk-select checkbox column.
+- **Status/tag chip system**: consistent color-coding rules across CRM stages, invoice statuses, ticket priorities.
+- **Empty states, loading skeletons, error states, notification/toast system**.
+
+---
+
+## Phase 1 — Auth, Onboarding & Organization Setup
+- Multi-step Sign up & OTP verification
+- Organization creation with currency, timezone, GSTIN
+- Module checklist selection (CRM, Finance, HR, Projects, Workspace)
+- Plan selection & 5-step guided onboarding wizard
+- Login, forgot password, 2FA challenge
+
+---
+
+## Phase 2 — Core Shell: Dynamic Dashboard, Navigation, Global Systems
+- Widget grid dashboard with drag-and-drop
+- Dynamic sidebar rendering only active subscribed modules
+- Global search overlay & Notification tray
+- Unified Approvals queue for leave, expense, quote, payroll
+
+---
+
+## Phase 3 — CRM Module UI
+- CRM dashboard with funnel and forecasts
+- Leads list with inline editing & drawer
+- Deals Kanban board with live recalculation
+- Contacts & Companies directory + 360° account view
+- Activity timeline with one-click Call/WhatsApp/Note quick-action dock
+
+---
+
+## Phase 4 — Finance & Accounting Module UI
+- Full-page Invoice & Quotation builder with live tax calculation
+- Status lifecycle stepper (Draft → Sent → Paid → Overdue → Void)
+- 1-click document conversion (Quote → Sales Order → Invoice)
+- Lightweight payment recording modal
+- Live CGST/SGST vs IGST state-aware split
+
+---
+
+## Phase 5 — HR & Payroll Module UI
+- 1-click frictionless Clock In/Clock Out panel
+- Tabbed employee profile (personal, employment, documents, payroll)
+- Inline leave balance display next to date pickers
+- Wizard-style full page payroll batch run
+- Visual org chart / hierarchy view
+
+---
+
+## Phase 6 — Project Management Module UI
+- Project dashboard with portfolio health
+- Persistent view switcher (Kanban / List / Gantt)
+- Task drawer with comments, @mentions, and subtasks
+- Specialized Gantt timeline canvas
+- Weekly timesheet grid with running totals
+
+---
+
+## Phase 7 — Workspace, Helpdesk, Inventory, Marketing
+- Unified Calendar Center
+- Helpdesk inbox with split-pane ticket thread and SLA countdowns
+- Company announcements with read receipts
+- Inventory product catalog with inline low-stock badges
+
+---
+
+## Phase 8 — Customization Engine UI (Core Differentiator)
+- Custom Field Builder with inline edit
+- Drag-and-drop Form Builder with public embed output
+- Custom Layout Builder with WYSIWYG preview
+- Pipeline/Status Builder with stage probabilities
+- Visual Workflow Composer (Trigger → Condition → Action)
+
+---
+
+## Phase 9 — Reports, Report Builder, Import/Export
+- Pre-built reports gallery & custom Report Builder with live preview
+- Multi-step Import Wizard with cell-level error validation table
+- Visual chart type selector (Table/Bar/Line/Pie/Funnel)
+
+---
+
+## Phase 10 — Portals (Customer & Employee)
+- Dedicated simplified portals with shallow navigation (3–5 items max)
+- Customer Portal: Quotes, invoices, payments, ticket desk
+- Employee Portal: Clock in/out, payslips, leaves, my tasks
+
+---
+
+## Phase 11 — Settings, Billing, Integrations, Master Admin
+- Organization settings & service panels
+- Billing management & usage meters with 80%/100% threshold warnings
+- Integrations Hub connector card grid
+- Master Platform Admin (`/admin`): mission control, organization inspector, forensic audit logs
+
+---
+
+## Phase 12 — Marketplace, White-Label, Mobile Responsiveness, Polish
+- Module Marketplace with contextual CTAs
+- White-label branding with live PDF preview
+- Priority mobile-responsive flows (Leads, Clock In/Out, Tasks, Approvals)
+
+---
+
 *Document: Vasify SUITE — Scope of Work (SOW)*  
-*Status: Master Functional Blueprint*
+*Status: Master Functional Blueprint (Updated September 2026)*
+
