@@ -265,6 +265,67 @@ async function handleDeleteUser(req, res) {
 }
 
 /**
+ * GET /api/admin/users
+ */
+async function handleGetUsers(req, res) {
+  try {
+    const result = await adminService.getUsersDirectory(req.query);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[AdminController] Get Users Error:', err);
+    res.status(500).json({ success: false, error: 'Failed to retrieve platform users.' });
+  }
+}
+
+/**
+ * GET /api/admin/users/:id/data
+ * 360° User Inspector Aggregator
+ */
+async function handleGetUserData(req, res) {
+  try {
+    const { id } = req.params;
+    const data = await adminService.getUserFull360Data(id);
+    res.json(data);
+  } catch (err) {
+    console.error('[AdminController] Get User 360 Data Error:', err);
+    res.status(500).json({ success: false, error: 'Failed to retrieve comprehensive user data.' });
+  }
+}
+
+/**
+ * POST /api/admin/users/:id/reset-password
+ */
+async function handleResetUserPassword(req, res) {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+    const adminId = req.admin?.id || 'admin-super-root';
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const result = await adminService.resetUserPassword(id, password, adminId, ipAddress);
+    res.json(result);
+  } catch (err) {
+    console.error('[AdminController] Reset User Password Error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Failed to reset user password.' });
+  }
+}
+
+/**
+ * POST /api/admin/users/:id/impersonate
+ */
+async function handleImpersonateUser(req, res) {
+  try {
+    const { id } = req.params;
+    const adminId = req.admin?.id || 'admin-super-root';
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const result = await adminService.impersonateUser(id, adminId, ipAddress);
+    res.json(result);
+  } catch (err) {
+    console.error('[AdminController] Impersonate User Error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Failed to initialize impersonation session.' });
+  }
+}
+
+/**
  * PUT /api/admin/invoices/:id/status
  */
 async function handleUpdateInvoiceStatus(req, res) {
@@ -353,9 +414,13 @@ module.exports = {
   handleSuspendCompany,
   handleDeleteCompany,
   handleExtendPlan,
+  handleGetUsers,
+  handleGetUserData,
   handleCreateUser,
   handleUpdateUser,
   handleDeleteUser,
+  handleResetUserPassword,
+  handleImpersonateUser,
   handleGetInvoices,
   handleUpdateInvoiceStatus,
   handleGetTickets,

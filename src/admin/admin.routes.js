@@ -27,9 +27,13 @@ router.put('/companies/:id/suspend', adminController.handleSuspendCompany);
 router.put('/companies/:id/extend-plan', adminController.handleExtendPlan);
 router.delete('/companies/:id/delete', adminController.handleDeleteCompany);
 
-// User Directory Management
+// User Directory Management & 360° Data
+router.get('/users', adminController.handleGetUsers);
+router.get('/users/:id/data', adminController.handleGetUserData);
 router.post('/users', adminController.handleCreateUser);
 router.put('/users/:id', adminController.handleUpdateUser);
+router.post('/users/:id/reset-password', adminController.handleResetUserPassword);
+router.post('/users/:id/impersonate', adminController.handleImpersonateUser);
 router.put('/users/:id/extend-plan', adminController.handleExtendPlan);
 router.delete('/users/:id', adminController.handleDeleteUser);
 
