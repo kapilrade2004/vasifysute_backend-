@@ -22,6 +22,8 @@ const hrRoutes        = require('./routes/hr.routes');
 const projectRoutes   = require('./routes/projects.routes');
 const workspaceRoutes = require('./routes/workspace.routes');
 const activitiesRoutes = require('./routes/activities.routes');
+const customFieldsRoutes = require('./routes/custom_fields.routes');
+const moduleTabsRoutes   = require('./routes/module_tabs.routes');
 const masterAdminRoutes = require('./src/admin/admin.routes');
 
 const app = express();
@@ -40,6 +42,8 @@ app.use('/api/leads', leadsRoutes);
 app.use('/api/deals', dealsRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/activities', activitiesRoutes);
+app.use('/api/custom-fields', customFieldsRoutes);
+app.use('/api/module-tabs', moduleTabsRoutes);
 app.use('/api/hr', hrRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/workspace', workspaceRoutes);
