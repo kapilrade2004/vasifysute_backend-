@@ -16,18 +16,36 @@
 4. [User Management & Two-Tiered RBAC](#4-user-management--two-tiered-rbac)
 5. [SaaS Service / Module Catalog](#5-saas-service--module-catalog)
 6. [Core Services Architecture](#6-core-services-architecture)
+   - [CRM as a Service](#crm-as-a-service)
+   - [Finance as a Service](#finance-as-a-service)
+   - [HR as a Service](#hr-as-a-service)
+   - [Project Management as a Service](#project-management-as-a-service)
+   - [Workspace as a Service](#workspace-as-a-service)
 7. [Service Activation & Subscription Engine](#7-service-activation--subscription-engine)
 8. [The Customization Engine (Core IP)](#8-the-customization-engine-core-ip)
+   - [Custom Field Builder](#custom-field-builder)
+   - [Custom Form Builder](#custom-form-builder)
+   - [Custom Layout Builder](#custom-layout-builder)
+   - [Configurable Pipelines & Lifecycles](#configurable-pipelines--lifecycles)
+   - [Workflow & Automation Engine](#workflow--automation-engine)
+   - [Dynamic Dashboard & Widget System](#dynamic-dashboard--widget-system)
 9. [Platform Supporting Services](#9-platform-supporting-services)
+   - [Notification Service](#notification-service)
+   - [Object Storage & File Service](#object-storage--file-service)
+   - [Background Job & Queue System](#background-job--queue-system)
+   - [Integration Hub & Webhooks](#integration-hub--webhooks)
 10. [Multi-Tenancy & Database Architecture](#10-multi-tenancy--database-architecture)
 11. [Backend REST API Architecture (`/api/v1`)](#11-backend-rest-api-architecture-apiv1)
 12. [Request Security Flow](#12-request-security-flow)
 13. [Frontend Dynamic Shell Architecture](#13-frontend-dynamic-shell-architecture)
-14. [Phased Implementation Roadmap](#14-phased-implementation-roadmap)
+14. [Customer Onboarding & Configuration Wizard](#14-customer-onboarding--configuration-wizard)
+15. [Phased Implementation Roadmap](#15-phased-implementation-roadmap)
 
 ---
 
 ## 1. The Fundamental Concept & 4 Pillars
+
+Vasify Suite is structured into **4 major systems**:
 
 ```text
                                   VASIFY SUITE
@@ -60,59 +78,229 @@
 
 ## 2. 🛡️ Platform Admin (Internal Control Plane)
 
-The **Platform Admin** (`/admin/*`) is Vasify's internal command center, managing:
-- Aggregated cross-tenant KPIs (Total Orgs, Active Trials, MRR, ARR, GMV, Infrastructure Health).
-- Deep Tenant Data Inspector: allows super-admins to inspect any tenant's CRM leads, deals, invoices, clients, staff, and user accounts.
-- Administrative lifecycle actions: Plan extensions (+7d, +15d, +30d, +90d, +365d), password resets, suspensions with audit logging, soft-deletion.
-- Real-time MySQL latency pings, 15 database table record counters, SMTP test dispatcher, maintenance mode.
+The **Platform Admin** (`/admin/*`) is Vasify's internal command center. It is strictly isolated from tenant spaces and handles cross-tenant telemetry, subscription health, and security governance.
+
+### Admin Dashboard KPIs & Telemetry
+```text
+/admin/dashboard
+├── Operational Metrics:
+│   ├── Total Organizations:     2,481
+│   ├── Active Organizations:    2,174
+│   ├── Active Trials (7-day):     187
+│   ├── Suspended Accounts:         23
+│   └── Churned / Cancelled:        97
+├── Financial Telemetry:
+│   ├── Monthly Recurring Revenue (MRR):  ₹18,40,000
+│   ├── Annual Recurring Revenue (ARR):   ₹2,20,80,000
+│   └── Total Platform GMV Invoiced:     ₹14,85,00,000
+└── System Infrastructure Health:
+    ├── API Requests (24h):      4.8M
+    ├── Database Latency:        12ms (Operational)
+    ├── Storage Footprint:       1.2 TB
+    └── Background Failed Jobs:  0 (Health: 100%)
+```
+
+### Analytical Growth Charts
+- MRR & ARR Growth Velocity.
+- Trial-to-Paid Conversion Cohorts.
+- Module Adoption Distribution (Full Suite vs CRM vs Finance vs HR).
+- API Saturation & Storage Utilization.
 
 ---
 
 ## 3. 🏢 Organization & Tenant Management
 
-- Scoped to `organizations` with unique `slug`, `plan_tier`, and `max_users`.
-- Admin inspects and modifies organization access, enabled modules, billing status, and usage.
+Super-admins govern all tenant companies via `/admin/organizations` (or `/admin/companies`):
+
+```text
+/admin/organizations
+├── Search & Filters (Status: Active, Trial, Suspended, Expired; Plan: Starter, Pro, Enterprise)
+├── Data Columns: Organization, Plan, Active Modules, User Seats, Status, GMV, Created Date
+└── Single Organization Deep Inspector (Full Multi-Tab Inspector):
+    ├── Overview: Subscription health, seat limits, owner profile
+    ├── Subscribed Modules: Toggle module access per tenant (CRM, Finance, HR, Projects)
+    ├── CRM Data: View all leads, deals, and pipeline volume of that tenant
+    ├── Finance Data: View all invoices, payments, and GST records of that tenant
+    ├── Customer Data: View all client accounts registered by that tenant
+    ├── Workforce Data: View all HR employee profiles and departments
+    ├── User Accounts: Manage all login credentials, roles, and 1-click password resets
+    ├── Plan Extensions: Fast presets (+7d, +15d, +30d, +90d, +365d) or custom expiry
+    └── Security Actions: Suspend with logged reason, reactivate, or soft-delete
+```
 
 ---
 
 ## 4. 👤 User Management & Two-Tiered RBAC
 
-- **Platform Users**: `SuperAdmin`, `SupportAdmin`, `FinanceAdmin`.
-- **Tenant Users**: `OrgOwner`, `OrgAdmin`, `Manager`, `Employee`, `Viewer`.
-- **Granular Permissions**: Evaluated using dot-notation (`leads.view`, `invoices.create`, `leaves.approve`).
+Vasify strictly separates **Platform Administrators** from **Tenant Business Users**:
+
+### 1. Platform Users (Internal Vasify Staff)
+- `SuperAdmin`: Full system control, billing, tenant lifecycle, and DB diagnostics.
+- `SupportAdmin`: Tenant support tickets, read-only audit inspection, user assists.
+- `FinanceAdmin`: Platform billing oversight, subscription reconciliation.
+
+### 2. Tenant Users (Customer Organization Staff)
+- `OrgOwner`: Full organization ownership, subscription billing, module activation.
+- `OrgAdmin`: Department-wide configuration, custom fields, user invitations.
+- `Manager`: Team lead approvals, pipeline management, leave approvals.
+- `Employee`: Personal tasks, timesheets, assigned leads, personal attendance.
+- `Viewer`: Read-only access to authorized modules.
+
+### Dynamic Permission Nodes
+Permissions are evaluated at runtime using granular dot-notation:
+```text
+CRM:       leads.view, leads.create, leads.edit, leads.delete, leads.export, leads.assign
+Finance:   invoices.view, invoices.create, invoices.edit, invoices.approve, invoices.export
+HR:        employees.view, attendance.manage, leaves.approve, payroll.generate
+Projects:  projects.create, tasks.assign, milestones.manage, timesheets.view
+```
 
 ---
 
 ## 5. 🧩 SaaS Service / Module Catalog
 
-Modules operate as independent pluggable services:
-- **CRM as a Service**: Leads, Contacts, Companies, Deals, Pipelines, Activity Timeline.
-- **Finance as a Service**: Invoices, Payments, Quotations, Expenses, Multi-Rate GST (0%, 5%, 12%, 18%, 28%).
-- **HR as a Service**: Employees, Attendance, Leave ledger, Payroll engine, Payslips.
-- **Projects as a Service**: Projects, Milestones, Tasks, Subtasks, Kanban, Timesheets.
-- **Workspace as a Service**: Calendar, Follow-up reminders, Internal support tickets.
+Each module is an isolated pluggable business service governed by metadata, pricing, dependencies, and settings:
+
+```text
+Module Entity
+├── Service Identity (key, name, description, icon, version)
+├── Pricing & Plan Tiers (Starter, Professional, Enterprise)
+├── Feature Flags (e.g. crm.ai_lead_scoring, finance.multi_currency)
+├── Module Dependencies (e.g. Projects requires Workspace)
+├── Default Entity Schema & Field Definitions
+└── Organization Activation Status (Active, Inactive, Trial)
+```
 
 ---
 
-## 6. Service Activation & Subscription Engine
+## 6. Core Services Architecture
 
-- Dynamically writes to `organization_modules`.
-- Subscribed modules immediately render in the client's **Dynamic Sidebar**. Unsubscribed modules remain hidden.
+### CRM as a Service
+- **Core Entities**: Leads, Contacts, Companies (B2B Accounts), Deals, Pipelines, Activities.
+- **High-Velocity Pipeline**: Visual drag-and-drop Kanban board with monetary stage feedback.
+- **Activity Timeline**: Unified stream (`Lead Created` ➔ `Call Logged` ➔ `WhatsApp Sent` ➔ `Meeting Held` ➔ `Quote Delivered` ➔ `Deal Won`).
+- **1-Click Conversion**: Converts qualified leads into linked Client Contacts and active Deals.
+
+### Finance as a Service
+- **Core Entities**: Invoices, Quotations, Sales Orders, Payments, Expenses, Vendors, Retainers.
+- **Configurable Multi-Rate GST**: Automatic intra-state (CGST + SGST) vs inter-state (IGST) calculations.
+- **Payment Ledger**: Running balance calculations for advance and milestone payments.
+- **Recurring Retainers**: Automated billing cycles (weekly, monthly, quarterly, annual).
+
+### HR as a Service
+- **Core Entities**: Employees, Departments, Designations, Attendance, Leave, Holidays, Payroll.
+- **Attendance Tracking**: One-click Clock In / Clock Out, daily logged hours, correction workflows.
+- **Leave Ledger**: Casual, Sick, and Earned balances with multi-stage manager approvals.
+- **Payroll Engine**: Automated salary calculations, allowance/deduction structures, one-click payslips.
+
+### Project Management as a Service
+- **Core Entities**: Projects, Milestones, Tasks, Subtasks, Timesheets, Budgets.
+- **Views**: Interactive Kanban boards, Gantt timelines, milestone burndown charts.
+- **Time Tracking**: Logged hours per task with project profitability analysis.
+
+### Workspace as a Service
+- **Core Entities**: Calendar Events, Meeting Links, Internal Tickets, Global Announcements.
+- **Follow-up Reminders**: Synchronized calendar alerts for sales closures and project milestones.
 
 ---
 
-## 7. The Customization Engine (Core IP)
+## 7. Service Activation & Subscription Engine
 
-1. **Custom Fields**: EAV schema supporting Text, Number, Currency, Dropdown, MultiSelect, Date, File, Image, UserReference, Formula.
-2. **Custom Forms**: Drag-and-drop form builder with public URLs.
-3. **Custom Layouts**: Reorder sections and control card visibility by role.
-4. **Configurable Pipelines**: Industry-specific stages (Agencies, Real Estate, Education, Healthcare).
-5. **Workflow & Automation Engine**: Event-driven `WHEN Trigger ➔ IF Condition ➔ DO Action`.
-6. **Dynamic Dashboards**: User-customized KPI and chart widget grids.
+When an organization subscribes to or enables a service, the system provisions tenant access dynamically:
+
+```text
+Customer Organization
+        │
+        ▼
+Select Modules & Plans (e.g. CRM + Finance)
+        │
+        ▼
+Subscription Transaction (Razorpay / Stripe)
+        │
+        ▼
+Service Activation Engine
+ ├── Writes to `organization_modules`
+ ├── Generates default custom fields & pipelines
+ ├── Updates tenant navigation shell
+ └── Dynamic Sidebar exposes only subscribed modules
+```
 
 ---
 
-## 8. Multi-Tenancy & Database Architecture
+## 8. The Customization Engine (Core IP)
+
+### Custom Field Builder
+Allows tenants to attach bespoke attributes to any entity without altering SQL schemas:
+
+```text
+CRM ➔ Leads ➔ Custom Fields ➔ "+ Add Field"
+┌────────────────────────────────────────────────────────┐
+│ Field Label:     Company Size                          │
+│ Field Key:       company_size                          │
+│ Field Type:      Dropdown                              │
+│ Options:         1-10, 11-50, 51-200, 201-500, 500+    │
+│ Validation:      Required [✓]  Filterable [✓]          │
+└────────────────────────────────────────────────────────┘
+```
+**Supported Primitives**: Text, LongText, Number, Currency, Email, Phone, URL, Date, DateTime, Dropdown, MultiSelect, Checkbox, Radio, File, Image, UserReference, RelationReference, Formula.
+
+### Custom Form Builder
+Visual drag-and-drop form builder generating public URLs (e.g. `https://vasifytech.com/f/org-slug/lead-form`) for inbound lead capture and website embedding.
+
+### Custom Layout Builder
+Allows organizations to rearrange detail views: reorder cards, position the Activity Timeline, and control role-based card visibility.
+
+### Configurable Pipelines & Lifecycles
+Custom pipeline stages tailored to any industry:
+- **Agencies**: `Lead` ➔ `Discovery` ➔ `Proposal` ➔ `Negotiation` ➔ `Won`.
+- **Real Estate**: `Inquiry` ➔ `Site Visit` ➔ `Price Negotiation` ➔ `Booking` ➔ `Sale Closed`.
+- **Education**: `Inquiry` ➔ `Counselling` ➔ `Application` ➔ `Admission` ➔ `Enrolled`.
+
+### Workflow & Automation Engine
+Event-driven trigger/condition/action builder:
+```text
+WHEN Lead Created
+  IF Source == "Website" AND ExpectedValue >= 1,00,000
+    THEN Set Priority = "High"
+    AND Assign to Senior Account Exec
+    AND Dispatch WhatsApp Greeting
+    AND Create Follow-up Task
+```
+
+### Dynamic Dashboard & Widget System
+Users compose their executive dashboard by adding, arranging, and resizing widgets (Revenue, Leads, Pipeline, Unpaid Invoices, Attendance, Cash Flow).
+
+---
+
+## 9. Platform Supporting Services
+
+### Notification Service
+Unified notification engine supporting:
+- In-app notification bell with real-time unread badges.
+- Transactional emails via Nodemailer (Gmail SMTP).
+- WhatsApp Cloud API webhooks.
+- Scheduled reminders.
+
+### Object Storage & File Service
+- Uploads routed to S3/Cloudflare R2 compatible object storage.
+- File metadata, permissions, and entity associations stored in MySQL.
+
+### Background Job & Queue System
+- Asynchronous task processing (Redis + BullMQ / Node event queues) for:
+  - Automated trial reminder emails.
+  - WhatsApp webhook dispatches.
+  - Large CSV/Excel data imports and exports.
+  - Invoice PDF rendering.
+
+### Integration Hub & Webhooks
+- Outbound webhooks on entity triggers (`lead.created`, `invoice.paid`, `deal.won`).
+- Inbound webhooks with HMAC signature verification.
+
+---
+
+## 10. Multi-Tenancy & Database Architecture
+
+All business tables are partitioned by `organization_id`:
 
 ```sql
 -- 1. Organizations
@@ -130,7 +318,7 @@ CREATE TABLE organizations (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. Organization Modules
+-- 2. Organization Modules (Service Activation)
 CREATE TABLE organization_modules (
   id VARCHAR(36) PRIMARY KEY,
   organization_id VARCHAR(36) NOT NULL,
@@ -211,7 +399,7 @@ CREATE TABLE workflows (
 
 ---
 
-## 9. Backend REST API Architecture (`/api/v1`)
+## 11. Backend REST API Architecture (`/api/v1`)
 
 ```text
 backend/src/
@@ -231,15 +419,70 @@ backend/src/
 
 ---
 
-## 10. Request Security Flow
+## 12. Request Security Flow
+
+Every tenant API request follows an authenticated pipeline:
 
 ```text
-Request ➔ CORS ➔ Rate Limit ➔ JWT Verification ➔ User & Org Resolution ➔ Module Guard ➔ RBAC Guard ➔ Controller/Service ➔ Scoped Database Query (`WHERE organization_id = ?`) ➔ Standardized Response
+Incoming HTTP Request
+        ↓
+    CORS Check
+        ↓
+   Rate Limiter (Brute-force protection)
+        ↓
+ JWT Signature Verification (`Bearer <token>`)
+        ↓
+ Resolve User & Organization ID
+        ↓
+ Check Organization Status (`active` / `trial`)
+        ↓
+ Check Subscribed Module Access (`organization_modules`)
+        ↓
+ Check Granular RBAC Permissions (`leads.create`)
+        ↓
+ Execute Controller & Service Logic
+        ↓
+ Scoped Query: `WHERE organization_id = ?`
+        ↓
+ Return Standardized JSON Response
 ```
 
 ---
 
-## 11. Phased Implementation Roadmap
+## 13. Frontend Dynamic Shell Architecture
+
+The client workspace (`vt-suite`) builds its navigation dynamically:
+1. Client logs in and receives JWT payload containing `organization_id` and active role.
+2. Shell queries `GET /api/v1/organizations/modules` to receive enabled services.
+3. **Dynamic Sidebar** renders only the subscribed modules:
+   - If organization only subscribes to **CRM & Finance**, HR and Projects are omitted from navigation.
+   - If organization upgrades to **Full Suite**, HR, Projects, and Workspace appear immediately.
+
+---
+
+## 14. Customer Onboarding & Configuration Wizard
+
+```text
+User Sign Up
+      ↓
+Verify Email
+      ↓
+Create Organization (Company Name, Slug)
+      ↓
+Select Industry (Agency, Tech, Real Estate, Education, Healthcare, Retail)
+      ↓
+Pre-Configure Industry Presets (Pipelines, Fields, Stages)
+      ↓
+Select Subscribed Services & Choose Plan
+      ↓
+Invite Team Members & Assign Roles
+      ↓
+Launch Tailored Workspace Dashboard
+```
+
+---
+
+## 15. Phased Implementation Roadmap
 
 ```
 Phase 1: Foundations & Admin Oversight (COMPLETED)
