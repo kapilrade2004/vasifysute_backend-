@@ -1,171 +1,207 @@
-# 🚀 Vasify SUITE — System Architecture & Documentation
+# 🚀 Vasify SUITE — Modular SaaS Platform Architecture
 
-> **VasifyTech Suite (VT Suite)** is an all-in-one, enterprise-grade multi-tenant SaaS business management platform that unifies CRM, Sales Pipelines, Finance & GST Invoicing, HR & Payroll, Project Management, Team Workspace, and an isolated **Master Admin Control Plane** under a high-performance web suite.
+> **Vasify SUITE** is an enterprise-grade, **Multi-Tenant Modular SaaS Platform** where organizations subscribe to ready-made business modules (CRM, Finance, HR, Projects, Workspace, and more) and can dynamically **enable, disable, configure, customize, and extend** their data models, workflows, forms, layouts, permissions, and branding without altering core application code.
 
 ---
 
 ## 📋 Table of Contents
 
-1. [System Overview](#system-overview)
-2. [High-Level Architecture](#high-level-architecture)
-3. [Technology Stack](#technology-stack)
+1. [Executive Summary & Core Philosophy](#executive-summary--core-philosophy)
+2. [Platform vs. Fixed SaaS Architecture](#platform-vs-fixed-saas-architecture)
+3. [The Customization Engine (Core IP)](#the-customization-engine-core-ip)
+   - [1. Custom Fields Engine](#1-custom-fields-engine)
+   - [2. Custom Modules & Dynamic Entity Engine](#2-custom-modules--dynamic-entity-engine)
+   - [3. Configurable Lifecycles & Pipelines](#3-configurable-lifecycles--pipelines)
+   - [4. Dynamic Form Builder & Public Endpoints](#4-dynamic-form-builder--public-endpoints)
+   - [5. Custom Layouts & View Composer](#5-custom-layouts--view-composer)
+   - [6. Configurable Dashboards & Widget System](#6-configurable-dashboards--widget-system)
+   - [7. Workflow & Automation Engine](#7-workflow--automation-engine)
+   - [8. Granular RBAC & Permission Matrix](#8-granular-rbac--permission-matrix)
+   - [9. White-Labeling & Brand Customization](#9-white-labeling--brand-customization)
+   - [10. Module Marketplace & App Store](#10-module-marketplace--app-store)
 4. [Master Admin Control Plane](#master-admin-control-plane)
-5. [Core SaaS Client Modules](#core-saas-client-modules)
-6. [Multi-Tenancy & Data Architecture](#multi-tenancy--data-architecture)
-7. [Role-Based Access Control (RBAC)](#role-based-access-control-rbac)
-8. [Database Schema](#database-schema)
-9. [Complete API Reference](#complete-api-reference)
-10. [Environment Configuration](#environment-configuration)
-11. [Deployment Specifications](#deployment-specifications)
-12. [Development Setup & Scripts](#development-setup--scripts)
+5. [Multi-Tenancy & Database Architecture](#multi-tenancy--database-architecture)
+6. [Complete REST API Reference](#complete-rest-api-reference)
+7. [Implementation & Evolution Roadmap](#implementation--evolution-roadmap)
 
 ---
 
-## System Overview
+## Executive Summary & Core Philosophy
 
-| Property | Value |
-|---|---|
-| **Product Name** | VasifyTech Suite (Vasify SUITE) |
-| **Architecture** | Multi-Tenant Decoupled SaaS (Next.js SPA + Express REST API) |
-| **Target Market** | SMBs, Digital Agencies, Tech Enterprises, Global Freelancers |
-| **Trial Model** | 7-Day Free Trial (Automated lifecycle emails & Admin extensions) |
-| **Taxation Engine** | Configurable Multi-Bracket GST (0%, 5%, 12%, 18%, 28%, exempt) with auto-split CGST/SGST vs IGST |
-| **Admin Plane** | Isolated Super-Admin Control Center (`/admin/*`) with Single Entity Deep Data Inspectors |
+Traditional business software forces organizations into rigid, hardcoded silos. **Vasify SUITE changes this paradigm:**
 
----
-
-## High-Level Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           CLIENT BROWSERS                               │
-│              Tenant Users & Staff           Master Super-Admins         │
-└───────────────────────┬───────────────────────────────┬─────────────────┘
-                        │ HTTPS                         │ HTTPS
-┌───────────────────────▼───────────────────────────────▼─────────────────┐
-│                   FRONTEND WEB APPLICATION (`vt-suite`)                 │
-│         Next.js 16 + React 19 + TypeScript + TailwindCSS v4             │
-│         Deployed on: Cloudflare Workers Static Assets (SPA) / Render   │
-│                                                                         │
-│  ┌─────────────────────────────────┐   ┌─────────────────────────────┐  │
-│  │     TENANT CLIENT WORKSPACE     │   │   MASTER ADMIN CONTROL      │  │
-│  │  • CRM & Real-Time Pipeline     │   │   • Global Mission Control  │  │
-│  │  • Finance & GST Invoicing      │   │   • Deep Tenant Inspector   │  │
-│  │  • HR & Payroll Ledger          │   │   • Cross-Tenant Invoices   │  │
-│  │  • Projects & Task Boards       │   │   • Cross-Tenant Tickets    │  │
-│  │  • Activity Timeline Drawer     │   │   • Forensic Audit Trail    │  │
-│  │  • Workspace Calendar & Support │   │   • System Health & DB Ping │  │
-│  └─────────────────────────────────┘   └─────────────────────────────┘  │
-└─────────────────────────────────┬───────────────────────────────────────┘
-                                  │ REST API (Bearer JWT / Admin Token)
-┌─────────────────────────────────▼───────────────────────────────────────┐
-│                 BACKEND REST API (`vasifysute_backend-`)                │
-│                 Node.js 20+ / Express.js (Modular Monolith)             │
-│                 Deployed on: Render Cloud (Oregon)                      │
-│                                                                         │
-│  ┌─────────────────────────────────┐   ┌─────────────────────────────┐  │
-│  │      TENANT BUSINESS LOGIC      │   │     MASTER ADMIN MODULE     │  │
-│  │  • Auth & User Management       │   │   • Isolated Admin JWT      │  │
-│  │  • Invoices & Payment Receipts  │   │   • Transactional Audit     │  │
-│  │  • Leads, Deals & Timeline      │   │   • System Telemetry / Ping │  │
-│  │  • HR Payroll & Attendance      │   │   • SMTP Diagnostic Service │  │
-│  └─────────────────────────────────┘   └─────────────────────────────┘  │
-│  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │        Notification Engine: Nodemailer (Gmail SMTP)               │  │
-│  └───────────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────┬───────────────────────────────────────┘
-                                  │ Connection Pool (mysql2 / SSL)
-┌─────────────────────────────────▼───────────────────────────────────────┐
-│                           MYSQL DATABASE                                │
-│       Production: Remote FreeSQLDatabase / TiDB Cloud / Aiven           │
-│       Development: Local MySQL 8.0 Engine (3306)                        │
-└─────────────────────────────────────────────────────────────────────────┘
+```text
+                    VASIFY SUITE
+                         │
+              ┌──────────┴──────────┐
+              │   SaaS Platform     │
+              └──────────┬──────────┘
+                         │
+        ┌────────────────┼────────────────┐
+        │                │                │
+      CRM             Finance             HR
+        │                │                │
+     Projects        Workspace         Reports
+        │                │                │
+        └────────────────┼────────────────┘
+                         │
+                 CUSTOMIZATION ENGINE
+                         │
+          ┌──────────────┼──────────────┐
+          │              │              │
+       Fields         Workflows       Layouts
+       Forms          Automation       Branding
+       Statuses       Permissions      Templates
+       Modules        Rules            Dashboards
 ```
 
----
+Instead of writing separate codebases for different verticals:
+- **Agency / Tech Company**: Uses `Leads ➔ Demos ➔ Proposals ➔ Won Deals`.
+- **Real Estate Firm**: Configures the CRM engine for `Inquiries ➔ Site Visits ➔ Negotiations ➔ Bookings`.
+- **Educational Institute**: Configures the CRM engine for `Inquiries ➔ Counselling ➔ Applications ➔ Admissions`.
 
-## Complete API Reference
-
-All endpoints are prefixed with `/api`.
-
-### 1. Master Admin API (`/api/admin/*`)
-*Guarded by `verifyAdminToken` and `requireRole('super_admin')` unless specified.*
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/admin/login` | Super admin login (Rate limited: 5 attempts / 15m) |
-| `GET` | `/api/admin/stats` | Cached aggregate platform telemetry |
-| `GET` | `/api/admin/system-health` | Live MySQL ping latency, table row counts, server uptime |
-| `POST` | `/api/admin/test-email` | Diagnostic SMTP email dispatcher |
-| `GET` | `/api/admin/companies` | List all tenant companies |
-| `POST` | `/api/admin/companies` | Register new tenant company with owner account |
-| `GET` | `/api/admin/companies/:id` | Deep tenant details (leads, deals, invoices, users) |
-| `PUT` | `/api/admin/companies/:id` | Update company profile, service tier, max seats |
-| `PUT` | `/api/admin/companies/:id/extend-plan` | Extend tenant subscription days |
-| `POST` | `/api/admin/companies/:id/reset-password` | Reset company owner password |
-| `PUT` | `/api/admin/companies/:id/suspend` | Suspend or reactivate company (Audit logged) |
-| `DELETE` | `/api/admin/companies/:id/delete` | Soft delete tenant company (Audit logged) |
-| `POST` | `/api/admin/users` | Add user directly assigned to any tenant |
-| `PUT` | `/api/admin/users/:id` | Update user details, role, status, company |
-| `PUT` | `/api/admin/users/:id/extend-plan` | Extend individual user plan |
-| `DELETE` | `/api/admin/users/:id` | Delete user account (Audit logged) |
-| `GET` | `/api/admin/invoices` | Cross-tenant invoice audit directory |
-| `PUT` | `/api/admin/invoices/:id/status` | Override invoice payment status with admin note |
-| `GET` | `/api/admin/tickets` | Cross-tenant support tickets queue |
-| `POST` | `/api/admin/tickets` | Create support ticket |
-| `PUT` | `/api/admin/tickets/:id` | Update ticket status, priority, and resolution notes |
-| `GET` | `/api/admin/audit-logs` | Filterable forensic audit trail |
-
-### 2. Tenant Client API (`/api/*`)
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/auth/register` | Register new tenant user account |
-| `POST` | `/api/auth/login` | Authenticate tenant user & issue JWT |
-| `GET` | `/api/auth/verify` | Verify active JWT session |
-| `GET` / `POST` | `/api/customers` | Customer directory & client creation |
-| `PUT` / `DELETE` | `/api/customers/:id` | Customer updates & removal |
-| `GET` / `POST` | `/api/invoices` | Tenant invoices list & creation |
-| `PUT` | `/api/invoices/:id` | Invoice payment status updates |
-| `GET` / `POST` | `/api/leads` | Sales leads management |
-| `GET` / `POST` | `/api/deals` | Deal pipeline stages |
-| `GET` / `POST` | `/api/hr/employees` | Staff directory |
-| `GET` / `POST` | `/api/hr/attendance` | Clock-in/out logs |
-| `GET` / `PUT` | `/api/hr/leaves` | Leave requests & manager approvals |
-| `GET` / `POST` | `/api/hr/payroll` | Monthly payroll processing |
-| `GET` / `POST` | `/api/workspace/tickets` | Tenant support tickets |
+**Same core platform engine. Completely configurable tenant experience.**
 
 ---
 
-## Environment Configuration
+## The Customization Engine (Core IP)
 
-### Backend (`vasifysute_backend-/.env`)
-```env
-PORT=5000
-NODE_ENV=production
+### 1. Custom Fields Engine
+Organizations can append custom fields to any core entity (`leads`, `deals`, `customers`, `invoices`, `employees`, `projects`).
 
-# Database Credentials
-DB_HOST=sql12.freesqldatabase.com
-DB_PORT=3306
-DB_USER=your_db_user
-DB_PASSWORD=your_db_password
-DB_NAME=your_db_name
-DB_SSL=false
+Supported Types: `Text`, `Number`, `Currency`, `Email`, `Phone`, `Date`, `Dropdown`, `MultiSelect`, `Checkbox`, `Radio`, `File`, `Image`, `UserReference`, `RelationReference`, `Formula`.
 
-# Authentication Secrets
-JWT_SECRET=super_secret_tenant_jwt_key_2026
-ADMIN_JWT_SECRET=isolated_master_super_admin_jwt_secret_key_2026
+### 2. Custom Modules & Dynamic Entity Engine
+Organizations can declare entirely new business modules and sub-entities directly from the UI (e.g. `Properties`, `Students`, `Vehicles`, `Patients`).
 
-# Super Admin Seed Credentials
-ADMIN_INITIAL_EMAIL=admin@vasifytech.com
-ADMIN_INITIAL_PASSWORD=admin123
-ADMIN_INITIAL_NAME=Master Super Admin
+### 3. Configurable Lifecycles & Pipelines
+No hardcoded status sequences. Tenants create and customize pipelines according to their sales methodology.
 
-# Email Delivery (Gmail SMTP)
-EMAIL_USER=notifications@vasifytech.com
-EMAIL_PASS=your_gmail_app_password
+### 4. Dynamic Form Builder & Public Endpoints
+Visual form composer allowing tenants to generate public lead-capture or survey forms with webhooks.
+
+### 5. Custom Layouts & View Composer
+Tenants control the anatomy of record detail pages, card placement, and role-based section visibility.
+
+### 6. Configurable Dashboards & Widget System
+Every organization dashboard is composed of modular, draggable, resizable KPI and chart widgets.
+
+### 7. Workflow & Automation Engine
+Event-driven trigger and action pipeline for business automation (`WHEN Trigger ➔ IF Condition ➔ DO Action`).
+
+### 8. Granular RBAC & Permission Matrix
+Moving beyond `admin` vs `user` into dynamic role composition with module- and field-level permissions.
+
+### 9. White-Labeling & Brand Customization
+Custom logo, brand accent colors, custom invoice templates, and custom domain bindings.
+
+### 10. Module Marketplace & App Store
+Tenants can subscribe to or activate modules on-demand (`CRM`, `Finance`, `HR`, `Projects`, `Inventory`, `Helpdesk`).
+
+---
+
+## Multi-Tenancy & Database Architecture
+
+### Primary Tenant Boundary: `organizations`
+
+```sql
+-- 1. Organizations (Core Tenant Entity)
+CREATE TABLE organizations (
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  legal_name VARCHAR(255) NULL,
+  slug VARCHAR(100) NOT NULL UNIQUE,
+  logo_url VARCHAR(512) NULL,
+  brand_color VARCHAR(16) NULL,
+  gstin VARCHAR(20) NULL,
+  plan_tier ENUM('starter', 'pro', 'enterprise') NOT NULL DEFAULT 'starter',
+  trial_ends_at DATETIME NULL,
+  max_users INT NOT NULL DEFAULT 10,
+  status ENUM('active', 'trial', 'disabled', 'deleted') NOT NULL DEFAULT 'trial',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Organization Enabled Modules
+CREATE TABLE organization_modules (
+  id VARCHAR(36) PRIMARY KEY,
+  organization_id VARCHAR(36) NOT NULL,
+  module_key VARCHAR(50) NOT NULL, -- 'crm', 'finance', 'hr', 'projects', 'inventory'
+  is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  settings JSON NULL,
+  FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  UNIQUE KEY (organization_id, module_key)
+);
+
+-- 3. Users & Tenant Membership
+CREATE TABLE users (
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  mobile_number VARCHAR(30) NULL,
+  avatar_url VARCHAR(512) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE organization_users (
+  id VARCHAR(36) PRIMARY KEY,
+  organization_id VARCHAR(36) NOT NULL,
+  user_id VARCHAR(36) NOT NULL,
+  role_id VARCHAR(36) NOT NULL,
+  status ENUM('active', 'disabled') NOT NULL DEFAULT 'active',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 4. Custom Fields Schema
+CREATE TABLE custom_fields (
+  id VARCHAR(36) PRIMARY KEY,
+  organization_id VARCHAR(36) NOT NULL,
+  module_key VARCHAR(50) NOT NULL,
+  entity_type VARCHAR(50) NOT NULL,
+  field_name VARCHAR(100) NOT NULL,
+  field_key VARCHAR(100) NOT NULL,
+  field_type VARCHAR(30) NOT NULL,
+  options JSON NULL,
+  is_required BOOLEAN NOT NULL DEFAULT FALSE,
+  is_visible BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  UNIQUE KEY (organization_id, entity_type, field_key)
+);
+```
+
+---
+
+## Implementation & Evolution Roadmap
+
+```
+Phase 1: Foundation (COMPLETED)
+├── Cloudflare Static Export Deployment (Zero Errors, 47 Routes Compiled)
+├── Master Admin Console with Deep Data Inspector across all Tenants
+├── Transactional Admin APIs with Mandatory Audit Logging
+└── Live Infrastructure Diagnostics & SMTP Mail Dispatcher
+
+Phase 2: Modular Customization Engine (IN PROGRESS)
+├── Organization-First Multi-Tenancy Transition (organizations -> organization_users)
+├── Custom Fields Engine (EAV schema + dynamic form rendering in CRM)
+├── Dynamic Pipeline & Stage Builder (Configurable deal workflows)
+└── Granular Dynamic RBAC (Custom roles with module-level permissions)
+
+Phase 3: Automation & Integrations (NEXT)
+├── Workflow Automation Engine (Trigger ➔ Condition ➔ Action visual builder)
+├── In-App Notification Center & Activity Timeline Feeds
+├── Multi-Bracket Configurable GST Engine with State-Aware Split
+└── Document Vault (Contracts, Invoices, Attachments on S3/R2)
+
+Phase 4: Scale & Ecosystem (FUTURE)
+├── White-Labeling (Custom subdomains, brand palettes, invoice templates)
+├── Module Marketplace (1-click installation of new business modules)
+└── Public Developer API & Webhook Dispatcher
 ```
 
 ---
 
 *Last Updated: September 2026*  
-*Project: Vasify SUITE / VasifyTech Suite*
+*Architecture: Vasify SUITE Modular SaaS Platform*
